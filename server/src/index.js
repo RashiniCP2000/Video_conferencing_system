@@ -35,6 +35,7 @@ const io = new Server(server, {
   },
 });
 
+app.set("io", io);
 setupSocket(io);
 
 async function main() {

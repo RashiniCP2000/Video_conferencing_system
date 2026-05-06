@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { Meeting } from "../models/Meeting.js";
 import { User } from "../models/User.js";
 import { authRequired, optionalAuth } from "../middleware/auth.js";
+import { flushWaitingQueue } from "../socket/handlers.js";
 
 const router = Router();
 
@@ -37,6 +38,43 @@ router.post("/", authRequired, async (req, res) => {
   }
 });
 
+router.patch("/:meetingCode/waiting-room", authRequired, async (req, res) => {
+  try {
+    const code = req.params.meetingCode.toUpperCase();
+    const { waitingRoomEnabled } = req.body ?? {};
+    if (typeof waitingRoomEnabled !== "boolean") {
+      return res.status(400).json({ message: "Body must include waitingRoomEnabled: boolean" });
+    }
+
+    const meeting = await Meeting.findOne({ meetingCode: code, endedAt: null });
+    if (!meeting) {
+      return res.status(404).json({ message: "Meeting not found or has ended" });
+    }
+    if (meeting.host.toString() !== req.userId) {
+      return res.status(403).json({ message: "Only the meeting host can change the waiting room" });
+    }
+
+    meeting.waitingRoomEnabled = waitingRoomEnabled;
+    await meeting.save();
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(code).emit("waiting-room-updated", { waitingRoomEnabled });
+      if (!waitingRoomEnabled) {
+        flushWaitingQueue(io, code);
+      }
+    }
+
+    res.json({
+      meetingCode: meeting.meetingCode,
+      waitingRoomEnabled: meeting.waitingRoomEnabled,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Could not update waiting room" });
+  }
+});
+
 router.get("/:meetingCode", optionalAuth, async (req, res) => {
   try {
     const meeting = await Meeting.findOne({
@@ -59,6 +97,7 @@ router.get("/:meetingCode", optionalAuth, async (req, res) => {
       title: meeting.title,
       host: meeting.host ? { name: meeting.host.name, email: meeting.host.email } : null,
       isHost,
+      waitingRoomEnabled: meeting.waitingRoomEnabled !== false,
       createdAt: meeting.createdAt,
     });
   } catch (err) {
