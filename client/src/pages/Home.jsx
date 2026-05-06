@@ -58,8 +58,8 @@ export default function Home() {
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-12">
         <h1 className="text-3xl font-semibold text-white mb-2">Dashboard</h1>
         <p className="text-slate-400 mb-10">
-          Phase 1 — Create an instant meeting or join with a code. Guests can open the meeting link
-          directly.
+          Create an instant meeting or join with a code. Phase 2 adds waiting room, host controls,
+          private chat, recording, and grid or speaker layout in the call.
         </p>
 
         {error && (
