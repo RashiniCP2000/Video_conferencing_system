@@ -47,6 +47,13 @@ export default function Home() {
           <span className="text-sm text-slate-400 hidden sm:inline">{user?.email}</span>
           <button
             type="button"
+            onClick={() => navigate("/pricing")}
+            className="text-sm font-medium text-accent hover:text-blue-400"
+          >
+            Upgrade Plan
+          </button>
+          <button
+            type="button"
             onClick={logout}
             className="text-sm text-slate-300 hover:text-white"
           >
@@ -57,10 +64,19 @@ export default function Home() {
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-12">
         <h1 className="text-3xl font-semibold text-white mb-2">Dashboard</h1>
-        <p className="text-slate-400 mb-10">
-          Create an instant meeting or join with a code. Phase 2 adds waiting room, host controls,
-          private chat, recording, and grid or speaker layout in the call.
-        </p>
+        <div className="flex items-center gap-3 mb-10">
+          <p className="text-slate-400">
+            Create an instant meeting or join with a code.
+          </p>
+          <span className="px-2 py-1 rounded-md bg-accent/10 text-accent text-xs font-bold uppercase tracking-wider">
+            {user?.plan || "Free"} Plan
+          </span>
+          {user?.subscriptionStatus === "active" && (
+            <span className="px-2 py-1 rounded-md bg-green-500/10 text-green-400 text-xs font-bold uppercase tracking-wider">
+              Active
+            </span>
+          )}
+        </div>
 
         {error && (
           <div className="mb-6 rounded-lg bg-red-500/15 text-red-300 text-sm px-4 py-3">{error}</div>

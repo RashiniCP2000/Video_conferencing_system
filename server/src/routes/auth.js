@@ -30,7 +30,7 @@ router.post("/register", async (req, res) => {
     });
     res.status(201).json({
       token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, plan: user.plan, subscriptionStatus: user.subscriptionStatus },
     });
   } catch (err) {
     console.error(err);
@@ -53,7 +53,7 @@ router.post("/login", async (req, res) => {
     });
     res.json({
       token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, plan: user.plan, subscriptionStatus: user.subscriptionStatus },
     });
   } catch (err) {
     console.error(err);
@@ -117,10 +117,10 @@ router.post("/reset-password", async (req, res) => {
 
 router.get("/me", authRequired, async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select("name email role");
+    const user = await User.findById(req.userId).select("name email role plan subscriptionStatus");
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json({
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, plan: user.plan, subscriptionStatus: user.subscriptionStatus },
     });
   } catch (err) {
     console.error(err);
