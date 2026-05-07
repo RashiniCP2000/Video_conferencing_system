@@ -91,11 +91,11 @@ export default function Pricing() {
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-4xl text-center">
           <h2 className="text-base font-semibold leading-7 text-accent">Pricing</h2>
-          <p className="mt-2 text-4xl font-bold tracking-tight text-white sm:text-5xl">
+          <p className="mt-2 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
             Choose the right plan for your needs
           </p>
         </div>
-        <p className="mx-auto mt-6 max-w-2xl text-center text-lg leading-8 text-slate-400">
+        <p className="mx-auto mt-6 max-w-2xl text-center text-lg leading-8 text-slate-600">
           From solo projects to global enterprises, we have a plan that fits. 
           Verified students and corporate teams get exclusive benefits.
         </p>
@@ -105,25 +105,25 @@ export default function Pricing() {
               key={tier.id}
               className={classNames(
                 tier.featured
-                  ? "bg-surface-elevated ring-2 ring-accent"
-                  : "bg-surface-elevated/50 ring-1 ring-surface-border",
-                "rounded-3xl p-8 xl:p-10"
+                  ? "bg-white ring-2 ring-accent shadow-xl scale-105 z-10"
+                  : "bg-surface-elevated ring-1 ring-surface-border",
+                "rounded-3xl p-8 xl:p-10 transition-all duration-200"
               )}
             >
               <h3
                 id={tier.id}
                 className={classNames(
-                  tier.featured ? "text-accent" : "text-white",
+                  tier.featured ? "text-accent" : "text-slate-900",
                   "text-lg font-semibold leading-8"
                 )}
               >
                 {tier.name}
               </h3>
-              <p className="mt-4 text-sm leading-6 text-slate-400">{tier.description}</p>
+              <p className="mt-4 text-sm leading-6 text-slate-600">{tier.description}</p>
               <p className="mt-6 flex items-baseline gap-x-1">
-                <span className="text-4xl font-bold tracking-tight text-white">{tier.priceMonthly}</span>
+                <span className="text-4xl font-bold tracking-tight text-slate-900">{tier.priceMonthly}</span>
                 {tier.priceMonthly !== "Custom" && (
-                  <span className="text-sm font-semibold leading-6 text-slate-400">/month</span>
+                  <span className="text-sm font-semibold leading-6 text-slate-500">/month</span>
                 )}
               </p>
               <button
@@ -131,14 +131,14 @@ export default function Pricing() {
                 disabled={loading}
                 className={classNames(
                   tier.featured
-                    ? "bg-accent text-white shadow-sm hover:bg-blue-600"
-                    : "bg-white/10 text-white hover:bg-white/20",
-                  "mt-6 block w-full rounded-md py-2 px-3 text-center text-sm font-semibold leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"
+                    ? "bg-accent text-white shadow-sm hover:bg-blue-700"
+                    : "bg-slate-900 text-white hover:bg-slate-800",
+                  "mt-6 block w-full rounded-md py-2.5 px-3 text-center text-sm font-semibold leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 transition-all"
                 )}
               >
                 {loading ? "Processing..." : tier.buttonText}
               </button>
-              <ul role="list" className="mt-8 space-y-3 text-sm leading-6 text-slate-300 xl:mt-10">
+              <ul role="list" className="mt-8 space-y-3 text-sm leading-6 text-slate-600 xl:mt-10">
                 {tier.features.map((feature) => (
                   <li key={feature} className="flex gap-x-3">
                     <CheckIcon className="h-6 w-5 flex-none text-accent" aria-hidden="true" />

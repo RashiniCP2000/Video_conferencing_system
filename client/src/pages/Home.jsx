@@ -42,20 +42,20 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-surface-border bg-surface-elevated/80 backdrop-blur px-6 py-4 flex items-center justify-between">
-        <span className="font-semibold text-white">Video Conference</span>
+        <span className="font-semibold text-slate-900">Video Conference</span>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-slate-400 hidden sm:inline">{user?.email}</span>
+          <span className="text-sm text-slate-600 hidden sm:inline">{user?.email}</span>
           <button
             type="button"
             onClick={() => navigate("/pricing")}
-            className="text-sm font-medium text-accent hover:text-blue-400"
+            className="text-sm font-medium text-accent hover:text-blue-700"
           >
             Upgrade Plan
           </button>
           <button
             type="button"
             onClick={logout}
-            className="text-sm text-slate-300 hover:text-white"
+            className="text-sm text-slate-500 hover:text-slate-900"
           >
             Log out
           </button>
@@ -63,9 +63,9 @@ export default function Home() {
       </header>
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-6 py-12">
-        <h1 className="text-3xl font-semibold text-white mb-2">Dashboard</h1>
+        <h1 className="text-3xl font-semibold text-slate-900 mb-2">Dashboard</h1>
         <div className="flex items-center gap-3 mb-10">
-          <p className="text-slate-400">
+          <p className="text-slate-600">
             Create an instant meeting or join with a code.
           </p>
           <span className="px-2 py-1 rounded-md bg-accent/10 text-accent text-xs font-bold uppercase tracking-wider">
@@ -83,9 +83,9 @@ export default function Home() {
         )}
 
         <div className="grid gap-6 sm:grid-cols-2">
-          <section className="rounded-2xl border border-surface-border bg-surface-elevated p-6">
-            <h2 className="text-lg font-medium text-white mb-2">New meeting</h2>
-            <p className="text-sm text-slate-400 mb-4">
+          <section className="rounded-2xl border border-surface-border bg-surface-elevated p-6 shadow-sm">
+            <h2 className="text-lg font-medium text-slate-900 mb-2">New meeting</h2>
+            <p className="text-sm text-slate-600 mb-4">
               Generate a meeting ID and share the link with participants.
             </p>
             <button
@@ -98,34 +98,34 @@ export default function Home() {
             </button>
           </section>
 
-          <section className="rounded-2xl border border-surface-border bg-surface-elevated p-6">
-            <h2 className="text-lg font-medium text-white mb-2">Join meeting</h2>
+          <section className="rounded-2xl border border-surface-border bg-surface-elevated p-6 shadow-sm">
+            <h2 className="text-lg font-medium text-slate-900 mb-2">Join meeting</h2>
             <form onSubmit={handleJoinMeeting} className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">
+                <label className="block text-xs font-medium text-slate-500 mb-1">
                   Meeting code
                 </label>
                 <input
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value)}
                   placeholder="e.g. A1B2C3D4"
-                  className="w-full rounded-lg bg-surface border border-surface-border px-3 py-2 text-sm uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="w-full rounded-lg bg-surface border border-surface-border px-3 py-2 text-sm uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-accent text-slate-900"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">
+                <label className="block text-xs font-medium text-slate-500 mb-1">
                   Display name (optional if logged in)
                 </label>
                 <input
                   value={guestName}
                   onChange={(e) => setGuestName(e.target.value)}
                   placeholder={user?.name || "Your name"}
-                  className="w-full rounded-lg bg-surface border border-surface-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="w-full rounded-lg bg-surface border border-surface-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent text-slate-900"
                 />
               </div>
               <button
                 type="submit"
-                className="w-full rounded-xl border border-surface-border hover:bg-surface text-white font-medium py-3 text-sm transition-colors"
+                className="w-full rounded-xl border border-surface-border hover:bg-slate-50 text-slate-900 font-medium py-3 text-sm transition-colors"
               >
                 Join
               </button>
@@ -133,9 +133,9 @@ export default function Home() {
           </section>
         </div>
 
-        <p className="mt-10 text-xs text-slate-500">
+        <p className="mt-10 text-xs text-slate-400">
           Tip: Share{" "}
-          <code className="text-slate-400">
+          <code className="text-slate-600">
             {typeof window !== "undefined" ? window.location.origin : ""}/meet/YOURCODE
           </code>{" "}
           so others can join without signing in.

@@ -35,17 +35,17 @@ export default function VerifyCorporate() {
   return (
     <div className="min-h-screen bg-surface flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <h2 className="text-3xl font-bold tracking-tight text-white">Corporate Verification</h2>
-        <p className="mt-2 text-sm text-slate-400">
+        <h2 className="text-3xl font-bold tracking-tight text-slate-900">Corporate Verification</h2>
+        <p className="mt-2 text-sm text-slate-600">
           Scale your team with the Corporate plan.
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-surface-elevated py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-surface-border">
+        <div className="bg-surface-elevated py-8 px-4 shadow-sm sm:rounded-lg sm:px-10 border border-surface-border">
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="company" className="block text-sm font-medium text-slate-300">
+              <label htmlFor="company" className="block text-sm font-medium text-slate-700">
                 Company Name
               </label>
               <div className="mt-1">
@@ -56,14 +56,14 @@ export default function VerifyCorporate() {
                   required
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  className="block w-full appearance-none rounded-md border border-surface-border bg-surface px-3 py-2 text-white placeholder-slate-500 focus:border-accent focus:outline-none focus:ring-accent sm:text-sm"
+                  className="block w-full appearance-none rounded-md border border-surface-border bg-surface px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-accent focus:outline-none focus:ring-accent sm:text-sm"
                   placeholder="Acme Corp"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300">
+              <label htmlFor="email" className="block text-sm font-medium text-slate-700">
                 Work Email Address
               </label>
               <div className="mt-1">

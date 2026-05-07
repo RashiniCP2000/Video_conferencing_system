@@ -722,8 +722,8 @@ export default function MeetingRoom() {
       <header className="shrink-0 border-b border-surface-border bg-surface-elevated px-4 py-3 flex flex-wrap items-center gap-3 justify-between">
         <div>
           <p className="text-xs text-slate-500 uppercase tracking-wide">Meeting code</p>
-          <p className="font-mono text-lg text-white">{codeUpper}</p>
-          {meetingMeta.title && <p className="text-sm text-slate-400">{meetingMeta.title}</p>}
+          <p className="font-mono text-lg text-slate-900">{codeUpper}</p>
+          {meetingMeta.title && <p className="text-sm text-slate-600">{meetingMeta.title}</p>}
           <p className="text-xs text-slate-500 mt-1">
             {meetingMeta.waitingRoomEnabled
               ? "Waiting room is on for guests."
@@ -734,7 +734,7 @@ export default function MeetingRoom() {
           <button
             type="button"
             onClick={copyLink}
-            className="rounded-lg border border-surface-border px-3 py-1.5 text-sm text-slate-200 hover:bg-surface"
+            className="rounded-lg border border-surface-border px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
           >
             {copied ? "Copied!" : "Copy invite link"}
           </button>
@@ -751,16 +751,16 @@ export default function MeetingRoom() {
 
       {!inCall && !waitingForAdmission ? (
         <div className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-md rounded-2xl border border-surface-border bg-surface-elevated p-8">
-            <h2 className="text-xl font-semibold text-white mb-1">Ready to join?</h2>
-            <p className="text-sm text-slate-400 mb-6">
+          <div className="w-full max-w-md rounded-2xl border border-surface-border bg-surface-elevated p-8 shadow-sm">
+            <h2 className="text-xl font-semibold text-slate-900 mb-1">Ready to join?</h2>
+            <p className="text-sm text-slate-600 mb-6">
               Host: {meetingMeta.host?.name || "Unknown"}
             </p>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Display name</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Display name</label>
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full rounded-lg bg-surface border border-surface-border px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-accent"
+              className="w-full rounded-lg bg-surface border border-surface-border px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-accent text-slate-900"
             />
             {joinError && (
               <div className="mb-4 rounded-lg bg-red-500/15 text-red-300 text-sm px-3 py-2">
@@ -770,7 +770,7 @@ export default function MeetingRoom() {
             {meetingMeta.isHost && (
               <div className="mb-4 rounded-lg border border-surface-border bg-surface px-3 py-3 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-medium text-slate-300">Waiting room (meeting setting)</p>
+                  <p className="text-xs font-medium text-slate-700">Waiting room (meeting setting)</p>
                   <p className="text-xs text-slate-500">Only you can change this while signed in as host</p>
                 </div>
                 <button
@@ -798,9 +798,9 @@ export default function MeetingRoom() {
         </div>
       ) : waitingForAdmission ? (
         <div className="flex-1 flex flex-col items-center justify-center p-8 gap-4">
-          <div className="rounded-2xl border border-surface-border bg-surface-elevated px-8 py-10 max-w-md text-center">
-            <h2 className="text-lg font-semibold text-white mb-2">Waiting for the host</h2>
-            <p className="text-sm text-slate-400">
+          <div className="rounded-2xl border border-surface-border bg-surface-elevated px-8 py-10 max-w-md text-center shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900 mb-2">Waiting for the host</h2>
+            <p className="text-sm text-slate-600">
               You’ll join the call when the host admits you from the waiting room.
             </p>
           </div>
@@ -820,7 +820,7 @@ export default function MeetingRoom() {
           <button
             type="button"
             onClick={leaveMeeting}
-            className="rounded-full px-5 py-2 text-sm border border-surface-border text-slate-200 hover:bg-surface"
+            className="rounded-full px-5 py-2 text-sm border border-surface-border text-slate-700 hover:bg-slate-50"
           >
             Cancel
           </button>
@@ -833,10 +833,10 @@ export default function MeetingRoom() {
               <button
                 type="button"
                 onClick={() => setLayoutMode("grid")}
-                className={`rounded-lg px-3 py-1 text-xs ${
+                className={`rounded-lg px-3 py-1 text-xs font-medium ${
                   layoutMode === "grid"
-                    ? "bg-accent text-white"
-                    : "border border-surface-border text-slate-300"
+                    ? "bg-accent text-white shadow-sm"
+                    : "border border-surface-border text-slate-600 hover:bg-slate-50"
                 }`}
               >
                 Grid
@@ -844,10 +844,10 @@ export default function MeetingRoom() {
               <button
                 type="button"
                 onClick={() => setLayoutMode("speaker")}
-                className={`rounded-lg px-3 py-1 text-xs ${
+                className={`rounded-lg px-3 py-1 text-xs font-medium ${
                   layoutMode === "speaker"
-                    ? "bg-accent text-white"
-                    : "border border-surface-border text-slate-300"
+                    ? "bg-accent text-white shadow-sm"
+                    : "border border-surface-border text-slate-600 hover:bg-slate-50"
                 }`}
               >
                 Speaker
@@ -864,8 +864,8 @@ export default function MeetingRoom() {
                     onClick={() => updateWaitingRoomSetting(!meetingMeta.waitingRoomEnabled)}
                     className={`rounded-lg px-3 py-1 text-xs font-medium disabled:opacity-50 ${
                       meetingMeta.waitingRoomEnabled
-                        ? "bg-amber-600/35 text-amber-100 border border-amber-500/40"
-                        : "border border-surface-border text-slate-300"
+                        ? "bg-amber-600 text-white shadow-sm"
+                        : "border border-surface-border text-slate-600 hover:bg-slate-50"
                     }`}
                   >
                     {waitingRoomSaving ? "…" : meetingMeta.waitingRoomEnabled ? "On" : "Off"}
@@ -878,10 +878,10 @@ export default function MeetingRoom() {
                   <button
                     type="button"
                     onClick={recording ? stopRecording : startRecording}
-                    className={`rounded-lg px-3 py-1 text-xs border ${
+                    className={`rounded-lg px-3 py-1 text-xs font-medium border ${
                       recording
-                        ? "bg-red-600 border-red-500 text-white"
-                        : "border-surface-border text-slate-300"
+                        ? "bg-red-600 border-red-500 text-white shadow-sm"
+                        : "border-surface-border text-slate-600 hover:bg-slate-50"
                     }`}
                   >
                     {recording ? "Stop recording" : "Record"}
@@ -923,8 +923,8 @@ export default function MeetingRoom() {
               <button
                 type="button"
                 onClick={() => setMicOn((m) => !m)}
-                className={`rounded-full px-4 py-2 text-sm font-medium ${
-                  micOn ? "bg-surface border border-surface-border" : "bg-red-600 text-white"
+                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                  micOn ? "bg-white border border-surface-border text-slate-700 hover:bg-slate-50" : "bg-red-600 text-white"
                 }`}
               >
                 {micOn ? "Mute" : "Unmute"}
@@ -932,8 +932,8 @@ export default function MeetingRoom() {
               <button
                 type="button"
                 onClick={() => setCamOn((c) => !c)}
-                className={`rounded-full px-4 py-2 text-sm font-medium ${
-                  camOn ? "bg-surface border border-surface-border" : "bg-red-600 text-white"
+                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                  camOn ? "bg-white border border-surface-border text-slate-700 hover:bg-slate-50" : "bg-red-600 text-white"
                 }`}
               >
                 {camOn ? "Camera off" : "Camera on"}
@@ -941,8 +941,8 @@ export default function MeetingRoom() {
               <button
                 type="button"
                 onClick={screenSharing ? stopScreenShare : startScreenShare}
-                className={`rounded-full px-4 py-2 text-sm font-medium border border-surface-border ${
-                  screenSharing ? "bg-emerald-700 text-white" : "bg-surface"
+                className={`rounded-full px-4 py-2 text-sm font-medium border border-surface-border transition-colors ${
+                  screenSharing ? "bg-emerald-600 text-white" : "bg-white text-slate-700 hover:bg-slate-50"
                 }`}
               >
                 {screenSharing ? "Stop sharing" : "Share screen"}
@@ -950,7 +950,7 @@ export default function MeetingRoom() {
               <button
                 type="button"
                 onClick={() => setChatOpen((o) => !o)}
-                className="rounded-full px-4 py-2 text-sm font-medium bg-surface border border-surface-border lg:hidden"
+                className="rounded-full px-4 py-2 text-sm font-medium bg-white border border-surface-border text-slate-700 hover:bg-slate-50 lg:hidden transition-colors"
               >
                 Chat
               </button>
@@ -970,7 +970,7 @@ export default function MeetingRoom() {
             } lg:flex w-full lg:w-80 border-l border-surface-border bg-surface-elevated flex-col max-h-[50vh] lg:max-h-none`}
           >
             <div className="p-3 border-b border-surface-border flex items-center justify-between">
-              <span className="text-sm font-medium text-white">Participants ({participants.length})</span>
+              <span className="text-sm font-medium text-slate-900">Participants ({participants.length})</span>
               <button type="button" className="lg:hidden text-slate-400 text-sm" onClick={() => setChatOpen(false)}>
                 Close
               </button>
@@ -1047,12 +1047,12 @@ export default function MeetingRoom() {
               ))}
             </ul>
 
-            <div className="px-3 py-2 text-xs font-medium text-slate-400 uppercase tracking-wide flex flex-col gap-1">
+            <div className="px-3 py-2 text-xs font-medium text-slate-500 uppercase tracking-wide flex flex-col gap-1">
               <span>Chat</span>
               <select
                 value={chatRecipient}
                 onChange={(e) => setChatRecipient(e.target.value)}
-                className="w-full rounded-lg bg-surface border border-surface-border px-2 py-1.5 text-xs text-slate-200 normal-case"
+                className="w-full rounded-lg bg-surface border border-surface-border px-2 py-1.5 text-xs text-slate-900 normal-case focus:ring-1 focus:ring-accent outline-none"
               >
                 <option value="everyone">Everyone</option>
                 {participants
@@ -1073,7 +1073,7 @@ export default function MeetingRoom() {
                     </span>
                   ) : null}
                   <span className="text-accent font-medium">{m.senderName}: </span>
-                  <span className="text-slate-200">{m.text}</span>
+                  <span className="text-slate-800">{m.text}</span>
                 </div>
               ))}
             </div>
@@ -1082,7 +1082,7 @@ export default function MeetingRoom() {
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder={chatRecipient === "everyone" ? "Message everyone…" : "Private message…"}
-                className="flex-1 rounded-lg bg-surface border border-surface-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                className="flex-1 rounded-lg bg-surface border border-surface-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent text-slate-900 placeholder-slate-400"
               />
               <button
                 type="submit"

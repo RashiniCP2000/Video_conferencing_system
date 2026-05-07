@@ -41,17 +41,17 @@ export default function VerifyStudent() {
   return (
     <div className="min-h-screen bg-surface flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <h2 className="text-3xl font-bold tracking-tight text-white">Student Verification</h2>
-        <p className="mt-2 text-sm text-slate-400">
+        <h2 className="text-3xl font-bold tracking-tight text-slate-900">Student Verification</h2>
+        <p className="mt-2 text-sm text-slate-600">
           Unlock the Student plan by verifying your status.
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-surface-elevated py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-surface-border">
+        <div className="bg-surface-elevated py-8 px-4 shadow-sm sm:rounded-lg sm:px-10 border border-surface-border">
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300">
+              <label htmlFor="email" className="block text-sm font-medium text-slate-700">
                 University Email Address
               </label>
               <div className="mt-1">
@@ -62,14 +62,14 @@ export default function VerifyStudent() {
                   autoComplete="email"
                   value={universityEmail}
                   onChange={(e) => setUniversityEmail(e.target.value)}
-                  className="block w-full appearance-none rounded-md border border-surface-border bg-surface px-3 py-2 text-white placeholder-slate-500 focus:border-accent focus:outline-none focus:ring-accent sm:text-sm"
+                  className="block w-full appearance-none rounded-md border border-surface-border bg-surface px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-accent focus:outline-none focus:ring-accent sm:text-sm"
                   placeholder="name@university.edu"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300">Student ID Card (Photo)</label>
+              <label className="block text-sm font-medium text-slate-700">Student ID Card (Photo)</label>
               <div className="mt-1 flex justify-center rounded-md border-2 border-dashed border-surface-border px-6 pt-5 pb-6">
                 <div className="space-y-1 text-center">
                   <svg

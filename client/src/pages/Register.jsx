@@ -29,15 +29,15 @@ export default function Register() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl bg-surface-elevated border border-surface-border p-8 shadow-xl">
-        <h1 className="text-2xl font-semibold text-white mb-1">Create account</h1>
-        <p className="text-slate-400 text-sm mb-6">Join meetings with your team</p>
+      <div className="w-full max-w-md rounded-2xl bg-surface-elevated border border-surface-border p-8 shadow-sm">
+        <h1 className="text-2xl font-semibold text-slate-900 mb-1">Create account</h1>
+        <p className="text-slate-500 text-sm mb-6">Join the video conferencing platform</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="rounded-lg bg-red-500/15 text-red-300 text-sm px-3 py-2">{error}</div>
           )}
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Name</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Name</label>
             <input
               type="text"
               autoComplete="name"
@@ -79,9 +79,9 @@ export default function Register() {
             {loading ? "Creating…" : "Register"}
           </button>
         </form>
-        <p className="mt-6 text-center text-sm text-slate-400">
+        <p className="mt-6 text-center text-sm text-slate-500">
           Already have an account?{" "}
-          <Link to="/login" className="text-accent hover:underline">
+          <Link to="/login" className="text-accent hover:underline font-medium">
             Sign in
           </Link>
         </p>

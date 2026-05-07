@@ -8,11 +8,11 @@ export default {
       },
       colors: {
         surface: {
-          DEFAULT: "#0f1419",
-          elevated: "#1a2332",
-          border: "#2d3a4f",
+          DEFAULT: "#ffffff",
+          elevated: "#f8fafc",
+          border: "#e2e8f0",
         },
-        accent: "#3b82f6",
+        accent: "#2563eb",
       },
     },
   },
