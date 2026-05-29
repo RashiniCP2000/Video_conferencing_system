@@ -128,6 +128,8 @@ export default function MeetingRoom() {
 
   const [recording, setRecording] = useState(false);
   const [waitingRoomSaving, setWaitingRoomSaving] = useState(false);
+  const [uploadingProgress, setUploadingProgress] = useState(null);
+  const recordingStartTimeRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordChunksRef = useRef([]);
   const compositeStopRef = useRef(null);
@@ -573,6 +575,7 @@ export default function MeetingRoom() {
 
   const startRecording = useCallback(() => {
     if (!mySocketId || !liveHostSocketId || mySocketId !== liveHostSocketId) return;
+    recordingStartTimeRef.current = Date.now();
     const tilesList = [
       ...(localStream
         ? [
@@ -625,6 +628,38 @@ export default function MeetingRoom() {
       URL.revokeObjectURL(url);
       setRecording(false);
       mediaRecorderRef.current = null;
+
+      // Upload the recording to the backend dashboard
+      const durationSec = recordingStartTimeRef.current
+        ? Math.round((Date.now() - recordingStartTimeRef.current) / 1000)
+        : 0;
+
+      const uploadRecording = async () => {
+        setUploadingProgress(0);
+        try {
+          const formData = new FormData();
+          formData.append("video", blob, `meeting-${codeUpper}-${Date.now()}.webm`);
+          formData.append("meetingCode", codeUpper);
+          formData.append("title", meetingMeta?.title || "Instant Meeting");
+          formData.append("duration", durationSec.toString());
+
+          await api.post("/recordings", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+            onUploadProgress: (progressEvent) => {
+              const percentCompleted = Math.round(
+                (progressEvent.loaded * 100) / progressEvent.total
+              );
+              setUploadingProgress(percentCompleted);
+            },
+          });
+        } catch (err) {
+          console.error("[Upload] Recording upload failed:", err);
+          window.alert("Cloud recording upload failed: " + (err.response?.data?.message || err.message));
+        } finally {
+          setUploadingProgress(null);
+        }
+      };
+      uploadRecording();
     };
 
     mediaRecorderRef.current = recorder;
@@ -719,6 +754,33 @@ export default function MeetingRoom() {
 
   return (
     <div className="min-h-screen flex flex-col bg-surface">
+      {uploadingProgress !== null && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl flex flex-col items-center text-center">
+            {/* Spinning/pulsating icon */}
+            <div className="relative mb-6">
+              <div className="w-16 h-16 rounded-full border-4 border-blue-500/20 border-t-blue-500 animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <svg className="w-6 h-6 text-blue-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+            </div>
+            
+            <h3 className="text-lg font-semibold text-slate-100 mb-2">Syncing Recording</h3>
+            <p className="text-sm text-slate-400 mb-6">Saving meeting recording to your dashboard...</p>
+            
+            {/* Progress Bar Container */}
+            <div className="w-full bg-slate-800 rounded-full h-2.5 mb-3 overflow-hidden">
+              <div 
+                className="bg-blue-500 h-2.5 rounded-full transition-all duration-300 ease-out" 
+                style={{ width: `${uploadingProgress}%` }}
+              />
+            </div>
+            <span className="text-xs font-semibold text-blue-400">{uploadingProgress}% Uploaded</span>
+          </div>
+        </div>
+      )}
       <header className="shrink-0 border-b border-surface-border bg-surface-elevated px-4 py-3 flex flex-wrap items-center gap-3 justify-between">
         <div>
           <p className="text-xs text-slate-500 uppercase tracking-wide">Meeting code</p>

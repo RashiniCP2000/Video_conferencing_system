@@ -11,8 +11,7 @@ import Pricing from "./pages/Pricing.jsx";
 import VerifyStudent from "./pages/VerifyStudent.jsx";
 import VerifyCorporate from "./pages/VerifyCorporate.jsx";
 import PaymentSuccess from "./pages/PaymentSuccess.jsx";
-
-
+import Recordings from "./pages/Recordings.jsx";
 
 
 const MeetingRoom = lazy(() => import("./pages/MeetingRoom.jsx"));
@@ -62,6 +61,7 @@ export default function App() {
         <Route path="/verify/student" element={<ProtectedRoute><VerifyStudent /></ProtectedRoute>} />
         <Route path="/verify/corporate" element={<ProtectedRoute><VerifyCorporate /></ProtectedRoute>} />
         <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
+        <Route path="/recordings" element={<ProtectedRoute><Recordings /></ProtectedRoute>} />
 
 
         <Route path="*" element={<Navigate to="/" replace />} />

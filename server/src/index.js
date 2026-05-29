@@ -8,6 +8,7 @@ import authRoutes from "./routes/auth.js";
 import meetingRoutes from "./routes/meetings.js";
 import verifyRoutes from "./routes/verify.js";
 import paymentRoutes from "./routes/payments.js";
+import recordingsRoutes from "./routes/recordings.js";
 import { setupSocket } from "./socket/handlers.js";
 
 const PORT = Number(process.env.PORT) || 5000;
@@ -29,12 +30,14 @@ app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
 app.use("/api/payments", paymentRoutes);
 
 app.use(express.json());
+app.use("/uploads", express.static("uploads"));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/meetings", meetingRoutes);
 app.use("/api/verify", verifyRoutes);
+app.use("/api/recordings", recordingsRoutes);
 
 const server = http.createServer(app);
 

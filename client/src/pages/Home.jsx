@@ -47,6 +47,13 @@ export default function Home() {
           <span className="text-sm text-slate-600 hidden sm:inline">{user?.email}</span>
           <button
             type="button"
+            onClick={() => navigate("/recordings")}
+            className="text-sm font-medium text-slate-600 hover:text-slate-900"
+          >
+            Recordings
+          </button>
+          <button
+            type="button"
             onClick={() => navigate("/pricing")}
             className="text-sm font-medium text-accent hover:text-blue-700"
           >
