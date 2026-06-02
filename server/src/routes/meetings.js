@@ -4,6 +4,9 @@ import { Meeting } from "../models/Meeting.js";
 import { User } from "../models/User.js";
 import { authRequired, optionalAuth } from "../middleware/auth.js";
 import { flushWaitingQueue } from "../socket/handlers.js";
+import { sendMail } from "../config/mailer.js";
+import { meetingInviteEmail } from "../config/emailTemplates.js";
+import { logActivity, getClientIp } from "../utils/activityLogger.js";
 
 const router = Router();
 
@@ -25,6 +28,17 @@ router.post("/", authRequired, async (req, res) => {
       title: req.body.title?.trim() || "Instant meeting",
     });
     const host = await User.findById(req.userId).select("name email");
+
+    logActivity({
+      userId: req.userId,
+      userEmail: host?.email,
+      userName: host?.name,
+      category: "meeting",
+      action: "meeting_create",
+      details: { meetingCode: meeting.meetingCode, title: meeting.title },
+      ipAddress: getClientIp(req),
+    });
+
     res.status(201).json({
       meetingId: meeting.meetingCode,
       meetingLink: `/meet/${meeting.meetingCode}`,
@@ -103,6 +117,43 @@ router.get("/:meetingCode", optionalAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Could not load meeting" });
+  }
+});
+
+router.post("/:meetingCode/invite", authRequired, async (req, res) => {
+  try {
+    const code = req.params.meetingCode.toUpperCase();
+    const { emails } = req.body;
+    if (!Array.isArray(emails) || emails.length === 0) {
+      return res.status(400).json({ message: "emails array is required" });
+    }
+
+    const meeting = await Meeting.findOne({ meetingCode: code, endedAt: null });
+    if (!meeting) {
+      return res.status(404).json({ message: "Meeting not found or has ended" });
+    }
+
+    const host = await User.findById(req.userId);
+    const hostName = host ? host.name : "A user";
+
+    const origin = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+    const meetingLink = `${origin}/meet/${code}`;
+
+    const results = [];
+    for (const email of emails) {
+      const emailHtml = meetingInviteEmail(meeting.title, meetingLink, hostName);
+      const mailResult = await sendMail({
+        to: email.trim(),
+        subject: `Invitation to join meeting: ${meeting.title}`,
+        html: emailHtml,
+      });
+      results.push({ email, success: mailResult.success, previewUrl: mailResult.previewUrl });
+    }
+
+    res.json({ message: "Invitations sent successfully", results });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Could not send invitations" });
   }
 });
 

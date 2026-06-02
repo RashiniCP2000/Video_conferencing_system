@@ -12,6 +12,10 @@ import VerifyStudent from "./pages/VerifyStudent.jsx";
 import VerifyCorporate from "./pages/VerifyCorporate.jsx";
 import PaymentSuccess from "./pages/PaymentSuccess.jsx";
 import Recordings from "./pages/Recordings.jsx";
+import CalendarConnect from "./pages/CalendarConnect.jsx";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+import EducationDataCollection from "./pages/EducationDataCollection.jsx";
+import EducationDataThankYou from "./pages/EducationDataThankYou.jsx";
 
 
 const MeetingRoom = lazy(() => import("./pages/MeetingRoom.jsx"));
@@ -27,6 +31,13 @@ function PageLoader() {
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function AdminRoute({ children }) {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user && user.role !== "admin") return <Navigate to="/" replace />;
   return children;
 }
 
@@ -46,6 +57,8 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/education-data" element={<ProtectedRoute><EducationDataCollection /></ProtectedRoute>} />
+        <Route path="/education-thank-you" element={<ProtectedRoute><EducationDataThankYou /></ProtectedRoute>} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route
@@ -62,6 +75,8 @@ export default function App() {
         <Route path="/verify/corporate" element={<ProtectedRoute><VerifyCorporate /></ProtectedRoute>} />
         <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
         <Route path="/recordings" element={<ProtectedRoute><Recordings /></ProtectedRoute>} />
+        <Route path="/settings/calendar" element={<ProtectedRoute><CalendarConnect /></ProtectedRoute>} />
+        <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
 
 
         <Route path="*" element={<Navigate to="/" replace />} />

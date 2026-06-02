@@ -8,6 +8,10 @@ const meetingSchema = new mongoose.Schema(
     /** When true (default), guests wait until the meeting host admits them. */
     waitingRoomEnabled: { type: Boolean, default: true },
     endedAt: { type: Date, default: null },
+    
+    // Meeting Passwords & real-time Locks
+    password: { type: String, default: null },
+    isLocked: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

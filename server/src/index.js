@@ -9,6 +9,9 @@ import meetingRoutes from "./routes/meetings.js";
 import verifyRoutes from "./routes/verify.js";
 import paymentRoutes from "./routes/payments.js";
 import recordingsRoutes from "./routes/recordings.js";
+import calendarRoutes from "./routes/calendar.js";
+import adminRoutes from "./routes/admin.js";
+import { preventNoSqlInjection } from "./middleware/sanitize.js";
 import { setupSocket } from "./socket/handlers.js";
 
 const PORT = Number(process.env.PORT) || 5000;
@@ -30,6 +33,7 @@ app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
 app.use("/api/payments", paymentRoutes);
 
 app.use(express.json());
+app.use(preventNoSqlInjection);
 app.use("/uploads", express.static("uploads"));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
@@ -38,6 +42,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/meetings", meetingRoutes);
 app.use("/api/verify", verifyRoutes);
 app.use("/api/recordings", recordingsRoutes);
+app.use("/api/calendar", calendarRoutes);
+app.use("/api/admin", adminRoutes);
 
 const server = http.createServer(app);
 

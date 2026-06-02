@@ -1,5 +1,7 @@
 import jwt from "jsonwebtoken";
 import { Meeting } from "../models/Meeting.js";
+import { User } from "../models/User.js";
+import { logActivity } from "../utils/activityLogger.js";
 
 /** Main room: meetingCode (uppercase) -> Map(socketId -> displayName) */
 const meetingSockets = new Map();
@@ -25,6 +27,16 @@ function addToMainRoom(socket, meetingCodeUpper, displayName, io) {
 
   if (!meetingSockets.has(rKey)) meetingSockets.set(rKey, new Map());
   meetingSockets.get(rKey).set(socket.id, displayName);
+
+  logActivity({
+    userId: socket.userId || null,
+    userEmail: socket.userEmail || "N/A",
+    userName: socket.userName || displayName || "Guest",
+    category: "meeting",
+    action: "meeting_join",
+    details: { meetingCode: meetingCodeUpper },
+    ipAddress: socket.handshake.address || "Unknown",
+  });
 
   const existing = [];
   meetingSockets.get(rKey).forEach((name, id) => {
@@ -130,6 +142,20 @@ export function setupSocket(io) {
         if (!meeting) {
           ack?.({ ok: false, error: "Meeting not found" });
           return;
+        }
+
+        if (socket.userId) {
+          const loggedInUser = await User.findById(socket.userId).select("name email").lean();
+          if (loggedInUser) {
+            socket.userEmail = loggedInUser.email;
+            socket.userName = loggedInUser.name;
+          }
+        }
+        if (!socket.userName) {
+          socket.userName = displayName || "Guest";
+        }
+        if (!socket.userEmail) {
+          socket.userEmail = "N/A";
         }
 
         const rKey = roomKey(meeting.meetingCode);
@@ -364,6 +390,16 @@ export function setupSocket(io) {
 
       if (!socket.meetingCode) return;
 
+      logActivity({
+        userId: socket.userId || null,
+        userEmail: socket.userEmail || "N/A",
+        userName: socket.userName || socket.displayName || "Guest",
+        category: "meeting",
+        action: "meeting_leave",
+        details: { meetingCode: socket.meetingCode, socketId: socket.id },
+        ipAddress: socket.handshake.address || "Unknown",
+      });
+
       const rKey = roomKey(socket.meetingCode);
       const wasHost = hostSocketByRoom.get(rKey) === socket.id;
 
@@ -375,6 +411,16 @@ export function setupSocket(io) {
           meetingSockets.delete(rKey);
           hostSocketByRoom.delete(rKey);
           waitingQueues.delete(rKey);
+
+          logActivity({
+            userId: socket.userId || null,
+            userEmail: socket.userEmail || "N/A",
+            userName: socket.userName || socket.displayName || "Guest",
+            category: "meeting",
+            action: "meeting_delete",
+            details: { meetingCode: socket.meetingCode, reason: "all_participants_left" },
+            ipAddress: socket.handshake.address || "Unknown",
+          });
         }
       }
 

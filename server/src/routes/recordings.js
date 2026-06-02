@@ -3,6 +3,10 @@ import multer from "multer";
 import { Recording } from "../models/Recording.js";
 import { authRequired } from "../middleware/auth.js";
 import { uploadFile, deleteFile } from "../config/s3.js";
+import { sendMail } from "../config/mailer.js";
+import { recordingReadyEmail } from "../config/emailTemplates.js";
+import { User } from "../models/User.js";
+import { logActivity, getClientIp } from "../utils/activityLogger.js";
 
 const router = Router();
 const upload = multer({
@@ -41,6 +45,33 @@ router.post("/", authRequired, upload.single("video"), async (req, res) => {
       duration: duration ? Number(duration) : 0,
       fileSize: req.file.size,
       storageType: uploadResult.storageType,
+    });
+
+    // Notify the host via email
+    let host = null;
+    try {
+      host = await User.findById(req.userId);
+      if (host && host.email) {
+        const recordingLink = recording.fileUrl;
+        const emailHtml = recordingReadyEmail(recording.title, recordingLink);
+        await sendMail({
+          to: host.email,
+          subject: `Your meeting recording is ready: ${recording.title}`,
+          html: emailHtml,
+        });
+      }
+    } catch (mailError) {
+      console.error("[Recordings Route] Failed to send recording ready email:", mailError);
+    }
+
+    logActivity({
+      userId: req.userId,
+      userEmail: host?.email,
+      userName: host?.name,
+      category: "meeting",
+      action: "recording_start",
+      details: { meetingCode: meetingCode.toUpperCase(), title: recording.title, fileName: recording.fileName },
+      ipAddress: getClientIp(req),
     });
 
     res.status(201).json({
@@ -108,6 +139,18 @@ router.delete("/:id", authRequired, async (req, res) => {
 
     // Delete from Database
     await Recording.deleteOne({ _id: recording._id });
+
+    const host = await User.findById(req.userId);
+
+    logActivity({
+      userId: req.userId,
+      userEmail: host?.email,
+      userName: host?.name,
+      category: "meeting",
+      action: "recording_stop",
+      details: { meetingCode: recording.meetingCode, title: recording.title, fileName: recording.fileName },
+      ipAddress: getClientIp(req),
+    });
 
     res.json({ message: "Recording successfully deleted." });
   } catch (error) {

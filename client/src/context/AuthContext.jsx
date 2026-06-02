@@ -10,6 +10,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
 
   const logout = useCallback(() => {
+    api.post("/auth/logout").catch(() => {}); // Fire and forget backend notification
     localStorage.removeItem(STORAGE_KEY);
     setToken(null);
     setUser(null);

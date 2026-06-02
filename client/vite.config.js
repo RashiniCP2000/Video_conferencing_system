@@ -7,6 +7,7 @@ export default defineConfig({
     include: ["simple-peer"],
   },
   server: {
+    host: true,
     port: 5173,
     proxy: {
       "/api": {
