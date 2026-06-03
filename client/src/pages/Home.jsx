@@ -130,6 +130,46 @@ export default function Home() {
         {/* Main Content */}
         <main className="flex-1 p-8">
           <div className="mx-auto max-w-6xl">
+            {/* Action Buttons Section */}
+            <div className="mb-12">
+              <div className="flex items-center justify-center gap-8">
+                {/* Schedule Button */}
+                <button className="flex flex-col items-center gap-3 rounded-2xl border-2 border-blue-400 p-4 hover:bg-blue-50">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-white text-2xl">
+                    📅
+                  </div>
+                  <span className="text-sm font-semibold text-slate-700">Schedule</span>
+                </button>
+
+                {/* Join Button */}
+                <button className="flex flex-col items-center gap-3 rounded-2xl p-4 hover:bg-blue-50">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-white text-2xl">
+                    ➕
+                  </div>
+                  <span className="text-sm font-semibold text-slate-700">Join</span>
+                </button>
+
+                {/* Host Button */}
+                <button className="flex flex-col items-center gap-3 rounded-2xl p-4 hover:bg-orange-50">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-500 text-white text-2xl">
+                    🎥
+                  </div>
+                  <span className="text-sm font-semibold text-slate-700">Host</span>
+                </button>
+              </div>
+
+              {/* Personal Meeting ID */}
+              <div className="mt-12 text-center">
+                <h3 className="mb-4 text-2xl font-bold text-slate-900">Personal Meeting ID</h3>
+                <div className="flex items-center justify-center gap-3">
+                  <p className="text-lg font-mono text-slate-700">543 517 4501</p>
+                  <button className="text-slate-500 hover:text-slate-700">
+                    📋
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* User Profile Card */}
             <div className="mb-12 rounded-2xl border border-slate-200 bg-white p-8">
               <div className="flex items-start gap-6">
@@ -164,15 +204,6 @@ export default function Home() {
 
               {/* Right Column */}
               <div className="space-y-8">
-                {/* Personal Meeting ID */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-6">
-                  <h3 className="mb-3 font-semibold text-slate-900">Personal Meeting ID</h3>
-                  <p className="text-lg font-mono text-slate-600">543 517 4501</p>
-                  <button className="mt-3 text-sm text-blue-600 hover:text-blue-700">
-                    Copy
-                  </button>
-                </div>
-
                 {/* Meetings */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-6">
                   <div className="mb-4 flex items-center justify-between">
