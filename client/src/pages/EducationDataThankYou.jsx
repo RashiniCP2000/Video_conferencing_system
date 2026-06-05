@@ -44,7 +44,7 @@ export default function EducationDataThankYou() {
                 Thank you for your work in education
               </h1>
               <p className="text-xl text-slate-600">
-                Now you can use your Zoom account now.
+                Now you can use your MeetNova account now.
               </p>
             </div>
 

@@ -16,6 +16,12 @@ import CalendarConnect from "./pages/CalendarConnect.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import EducationDataCollection from "./pages/EducationDataCollection.jsx";
 import EducationDataThankYou from "./pages/EducationDataThankYou.jsx";
+import ScheduleMeeting from "./pages/ScheduleMeeting.jsx";
+import MeetingDetails from "./pages/MeetingDetails.jsx";
+import Meetings from "./pages/Meetings.jsx";
+import Profile from "./pages/Profile.jsx";
+import Calendar from "./pages/Calendar.jsx";
+import Tasks from "./pages/Tasks.jsx";
 
 
 const MeetingRoom = lazy(() => import("./pages/MeetingRoom.jsx"));
@@ -75,6 +81,13 @@ export default function App() {
         <Route path="/verify/corporate" element={<ProtectedRoute><VerifyCorporate /></ProtectedRoute>} />
         <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
         <Route path="/recordings" element={<ProtectedRoute><Recordings /></ProtectedRoute>} />
+        <Route path="/schedule" element={<ProtectedRoute><ScheduleMeeting /></ProtectedRoute>} />
+        <Route path="/meetings/:tab" element={<ProtectedRoute><Meetings /></ProtectedRoute>} />
+        <Route path="/meetings" element={<Navigate to="/meetings/upcoming" replace />} />
+        <Route path="/meetings/details" element={<ProtectedRoute><MeetingDetails /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
+        <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
         <Route path="/settings/calendar" element={<ProtectedRoute><CalendarConnect /></ProtectedRoute>} />
         <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
 

@@ -61,15 +61,26 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log(`[Auth/Login] Login attempt for email: ${email}`);
     if (!email?.trim() || !password) {
+      console.log(`[Auth/Login] Failed: missing email or password`);
       return res.status(400).json({ message: "Email and password required" });
     }
     const user = await User.findOne({ email: email.toLowerCase().trim() });
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    if (!user) {
+      console.log(`[Auth/Login] Failed: user not found in database for email: ${email}`);
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+    
+    const isPasswordMatch = await bcrypt.compare(password, user.passwordHash);
+    console.log(`[Auth/Login] Password comparison result: ${isPasswordMatch}`);
+    if (!isPasswordMatch) {
+      console.log(`[Auth/Login] Failed: password mismatch`);
       return res.status(401).json({ message: "Invalid email or password" });
     }
     
     if (user.status === "suspended") {
+      console.log(`[Auth/Login] Failed: user account status is suspended`);
       return res.status(403).json({ message: "Your account has been suspended by an administrator." });
     }
 
@@ -86,12 +97,13 @@ router.post("/login", async (req, res) => {
       ipAddress: getClientIp(req),
     });
 
+    console.log(`[Auth/Login] Success: token generated for user ID: ${user._id}`);
     res.json({
       token,
       user: { id: user._id, name: user.name, email: user.email, role: user.role, plan: user.plan, subscriptionStatus: user.subscriptionStatus },
     });
   } catch (err) {
-    console.error(err);
+    console.error("[Auth/Login] Exception occurred:", err);
     res.status(500).json({ message: "Login failed" });
   }
 });
@@ -172,11 +184,27 @@ router.post("/reset-password", async (req, res) => {
     console.error(err);
     res.status(500).json({ message: "Failed to reset password" });
   }
+});router.post("/education-data", authRequired, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.verificationData = req.body;
+    user.plan = "student";
+    user.verificationStatus = "verified";
+    await user.save();
+
+    res.json({ message: "Education data saved successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to save education data" });
+  }
 });
+
 
 router.get("/me", authRequired, async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select("name email role plan subscriptionStatus status");
+    const user = await User.findById(req.userId).select("name email role plan subscriptionStatus status firstName lastName phone jobTitle company country hostKey");
     if (!user) return res.status(404).json({ message: "User not found" });
     
     if (user.status === "suspended") {
@@ -184,11 +212,89 @@ router.get("/me", authRequired, async (req, res) => {
     }
 
     res.json({
-      user: { id: user._id, name: user.name, email: user.email, role: user.role, plan: user.plan, subscriptionStatus: user.subscriptionStatus, status: user.status },
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        plan: user.plan,
+        subscriptionStatus: user.subscriptionStatus,
+        status: user.status,
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        phone: user.phone || "",
+        jobTitle: user.jobTitle || "",
+        company: user.company || "",
+        country: user.country || "",
+        hostKey: user.hostKey || "",
+      },
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to load profile" });
+  }
+});
+
+router.put("/profile", authRequired, async (req, res) => {
+  try {
+    const { firstName, lastName, email, phone, jobTitle, company, country, hostKey } = req.body;
+    if (!email?.trim()) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+    
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (email.toLowerCase().trim() !== user.email) {
+      const existing = await User.findOne({ email: email.toLowerCase().trim() });
+      if (existing) {
+        return res.status(409).json({ message: "Email is already in use" });
+      }
+    }
+
+    user.firstName = (firstName || "").trim();
+    user.lastName = (lastName || "").trim();
+    user.name = `${user.firstName} ${user.lastName}`.trim() || user.name || "User";
+    user.email = email.toLowerCase().trim();
+    user.phone = (phone || "").trim();
+    user.jobTitle = (jobTitle || "").trim();
+    user.company = (company || "").trim();
+    user.country = (country || "").trim();
+    if (hostKey !== undefined) {
+      user.hostKey = (hostKey || "").trim();
+    }
+    await user.save();
+
+    logActivity({
+      userId: user._id,
+      userEmail: user.email,
+      userName: user.name,
+      category: "user",
+      action: "profile_update",
+      ipAddress: getClientIp(req),
+    });
+
+    res.json({
+      message: "Profile updated successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        plan: user.plan,
+        subscriptionStatus: user.subscriptionStatus,
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        phone: user.phone || "",
+        jobTitle: user.jobTitle || "",
+        company: user.company || "",
+        country: user.country || "",
+        hostKey: user.hostKey || "",
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to update profile" });
   }
 });
 

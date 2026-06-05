@@ -125,7 +125,15 @@ export default function Login() {
               </div>
 
               <div>
-                <label className="mb-3 block text-sm font-medium text-slate-600">Password</label>
+                <div className="mb-3 flex items-center justify-between">
+                  <label className="block text-sm font-medium text-slate-600">Password</label>
+                  <Link
+                    to="/forgot-password"
+                    className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
                 <input
                   type="password"
                   autoComplete="current-password"
@@ -145,7 +153,7 @@ export default function Login() {
               </button>
 
               <p className="text-sm leading-6 text-slate-500">
-                By proceeding, I agree to Zoom&apos;s <span className="text-blue-600">Privacy Statement</span> and <span className="text-blue-600">Terms of Service</span>.
+                By proceeding, I agree to MeetNova&apos;s <span className="text-blue-600">Privacy Statement</span> and <span className="text-blue-600">Terms of Service</span>.
               </p>
             </form>
 

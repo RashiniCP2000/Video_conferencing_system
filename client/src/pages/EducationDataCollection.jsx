@@ -55,7 +55,7 @@ export default function EducationDataCollection() {
         <section className="rounded-[2rem] bg-white p-8 shadow-xl shadow-slate-200/50">
           <div className="max-w-2xl">
             <h1 className="text-4xl font-semibold tracking-tight text-slate-900">
-              Zoom&apos;s education data
+              MeetNova&apos;s education data
               <br />
               collection practices
             </h1>

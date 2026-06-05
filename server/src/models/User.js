@@ -34,6 +34,15 @@ const userSchema = new mongoose.Schema(
     verificationData: { type: mongoose.Schema.Types.Mixed, default: {} },
     status: { type: String, enum: ["active", "suspended"], default: "active" },
     
+    // Additional profile details
+    firstName: { type: String, default: "" },
+    lastName: { type: String, default: "" },
+    phone: { type: String, default: "" },
+    jobTitle: { type: String, default: "" },
+    company: { type: String, default: "" },
+    country: { type: String, default: "" },
+    hostKey: { type: String, default: () => Math.floor(100000 + Math.random() * 900000).toString() },
+
     // Account Lockout on failed logins
     loginAttempts: { type: Number, default: 0 },
     lockUntil: { type: Date },

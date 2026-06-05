@@ -1,55 +1,141 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import api from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import UserProfileMenu from "../components/UserProfileMenu.jsx";
+
+/* ─── Icons ──────────────────────────────────────────────────────── */
+const ChevronDown = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+    <path d="M7 10l5 5 5-5z" />
+  </svg>
+);
+const ChevronRight = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+    <path d="M8.59 16.34l4.58-4.59-4.58-4.59L10 5.75l6 6-6 6z" />
+  </svg>
+);
+const ExternalIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+    <path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
+  </svg>
+);
+const HomeIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+  </svg>
+);
+
+/* ─── Sidebar items ─────────────────────────────────────────────── */
+const sidebarItems = [
+  { label: "Meetings",   external: false, badge: null },
+  { label: "Recordings", external: false, badge: null },
+  { label: "Hub",        external: true,  badge: "New" },
+  { label: "Notes",      external: false, badge: null },
+  { label: "Tasks",      external: false, badge: null },
+  { label: "Scheduler",  external: true,  badge: null },
+  { label: "Calendar",   external: false, badge: null },
+];
+
+/* ─── Styles ─────────────────────────────────────────────────────── */
+const st = {
+  root: { display: "flex", flexDirection: "column", minHeight: "100vh", background: "var(--bg-primary, #f1f5f9)", fontFamily: "'Inter', 'Segoe UI', sans-serif", color: "var(--text-secondary, #1e293b)" },
+  /* Top Nav */
+  topNav: { display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--nav-bg, #fff)", borderBottom: "1px solid var(--nav-border, #e2e8f0)", padding: "0 24px", height: 56, position: "sticky", top: 0, zIndex: 100 },
+  topNavLeft: { display: "flex", alignItems: "center", gap: 24 },
+  logo: { fontSize: 22, fontWeight: 900, color: "var(--accent-blue, #1a6ff4)", letterSpacing: "-0.5px", fontFamily: "inherit" },
+  navLinks: { display: "flex", gap: 4 },
+  navLink: { background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "var(--text-nav, #475569)", padding: "6px 10px", borderRadius: 8, fontWeight: 500, fontFamily: "inherit" },
+  topNavRight: { display: "flex", alignItems: "center", gap: 8 },
+  navLinkHighlight: { background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "var(--text-secondary, #1e293b)", padding: "6px 12px", borderRadius: 8, fontWeight: 600, fontFamily: "inherit" },
+  navLinkHighlightDrop: { background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "var(--text-secondary, #1e293b)", padding: "6px 12px", borderRadius: 8, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" },
+  avatar: { width: 34, height: 34, borderRadius: "50%", background: "linear-gradient(135deg,#3b82f6,#6366f1)", color: "#fff", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" },
+  profileMenu: { position: "absolute", right: 0, top: 44, background: "var(--bg-card, #fff)", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: 14, boxShadow: "0 8px 32px rgba(0,0,0,0.12)", minWidth: 200, zIndex: 200, padding: "8px 0" },
+  profileMenuHeader: { padding: "10px 16px 8px", borderBottom: "1px solid var(--border-color, #f1f5f9)" },
+  profileMenuName: { fontWeight: 700, fontSize: 14, color: "var(--text-primary, #1e293b)", margin: 0 },
+  profileMenuEmail: { fontSize: 12, color: "var(--text-muted, #94a3b8)", margin: "2px 0 0" },
+  profileMenuItem: { display: "block", width: "100%", background: "none", border: "none", textAlign: "left", padding: "9px 16px", fontSize: 14, color: "var(--text-nav, #334155)", cursor: "pointer", fontFamily: "inherit" },
+  /* Body */
+  bodyRow: { display: "flex", flex: 1 },
+  /* Sidebar */
+  sidebar: { width: 240, background: "var(--bg-sidebar, #fff)", borderRight: "1px solid var(--border-color, #e2e8f0)", minHeight: "calc(100vh - 56px)", flexShrink: 0 },
+  sidebarInner: { padding: "16px 8px" },
+  sidebarGroupLabel: { fontSize: 11, fontWeight: 700, color: "var(--text-muted, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.08em", padding: "0 12px", marginBottom: 4, marginTop: 0 },
+  sidebarList: { listStyle: "none", margin: 0, padding: 0 },
+  sidebarItem: { margin: "1px 0" },
+  sidebarBtn: { width: "100%", background: "none", border: "none", textAlign: "left", padding: "8px 12px", borderRadius: 10, cursor: "pointer", fontSize: 13.5, color: "var(--sidebar-text, #1e293b)", fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "space-between", fontFamily: "inherit", transition: "background 0.15s" },
+  sidebarIcons: { display: "flex", alignItems: "center", gap: 4 },
+  newBadge: { fontSize: 10, fontWeight: 700, color: "var(--accent-blue-text, #1a6ff4)", background: "var(--accent-blue-bg, #dbeafe)", borderRadius: 6, padding: "1px 6px" },
+  externalIcon: { color: "var(--text-muted, #94a3b8)", display: "inline-flex" },
+  sidebarDivider: { height: 1, background: "var(--border-color, #f1f5f9)", margin: "8px 12px" },
+  sidebarCollapsible: { width: "100%", background: "none", border: "none", textAlign: "left", padding: "8px 12px", borderRadius: 10, cursor: "pointer", fontSize: 13.5, color: "var(--text-nav, #1e293b)", fontWeight: 500, display: "flex", alignItems: "center", gap: 8, fontFamily: "inherit" },
+  subMenu: { listStyle: "none", margin: "2px 0 2px 28px", padding: 0 },
+  subMenuItem: { width: "100%", background: "none", border: "none", textAlign: "left", padding: "7px 12px", borderRadius: 8, cursor: "pointer", fontSize: 13, color: "var(--text-muted, #475569)", fontFamily: "inherit" },
+  subMenuItemActive: { background: "var(--sidebar-active-bg, #eff6ff)", color: "var(--sidebar-active-color, #1a6ff4)", fontWeight: 600 },
+  /* Main */
+  main: { flex: 1, padding: "32px 32px", overflowY: "auto", background: "var(--bg-secondary, #fff)", color: "var(--text-secondary, #1e293b)" },
+};
 
 export default function Recordings() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
-  const [recordings, setRecordings] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [deletingId, setDeletingId] = useState(null);
-  const [showConfirmModal, setShowConfirmModal] = useState(null); // stores recording object to delete
-  const [error, setError] = useState("");
+  /* ── sidebar / nav state ── */
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [myAccountOpen,   setMyAccountOpen]   = useState(false);
+  const [activeSubPage,   setActiveSubPage]   = useState(null);
 
-  // Load recordings
+  /* ── recordings state ── */
+  const [recordings,       setRecordings]       = useState([]);
+  const [loading,          setLoading]          = useState(true);
+  const [search,           setSearch]           = useState("");
+  const [startDate,        setStartDate]        = useState("");
+  const [endDate,          setEndDate]          = useState("");
+  const [deletingId,       setDeletingId]       = useState(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(null);
+  const [error,            setError]            = useState("");
+
+  const initials = user?.name?.charAt(0).toUpperCase() || "U";
+
+  const handleLogout = () => { logout(); navigate("/login", { replace: true }); };
+  const handleHostMeeting = async () => {
+    try {
+      const { data } = await api.post("/meetings", { title: `${user?.name || "User"}'s Instant Meeting` });
+      navigate(`/meet/${data.meetingId}`);
+    } catch { alert("Could not start meeting."); }
+  };
+  const handleJoinMeeting = () => {
+    const code = prompt("Enter meeting code:");
+    if (code?.trim()) navigate(`/meet/${code.trim().toUpperCase()}`);
+  };
+  const handleSidebarClick = (label) => {
+    if (label === "Recordings") return;
+    if (label === "Meetings")   navigate("/meetings");
+    if (label === "Calendar")   navigate("/calendar");
+    if (label === "Scheduler")  navigate("/schedule");
+    if (label === "Tasks")      navigate("/tasks");
+  };
+
+  /* ── data fetching ── */
   const fetchRecordings = async () => {
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       const params = {};
       if (search.trim()) params.search = search.trim();
       if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
-
+      if (endDate)   params.endDate   = endDate;
       const { data } = await api.get("/recordings", { params });
       setRecordings(data.recordings || []);
     } catch (err) {
-      console.error("[Recordings] Fetch error:", err);
       setError(err.response?.data?.message || "Failed to load recordings");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchRecordings();
-  }, [startDate, endDate]); // refetch when dates change
+  useEffect(() => { fetchRecordings(); }, [startDate, endDate]);
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    fetchRecordings();
-  };
-
+  const handleSearchSubmit = (e) => { e.preventDefault(); fetchRecordings(); };
   const handleClearFilters = () => {
-    setSearch("");
-    setStartDate("");
-    setEndDate("");
-    // Re-fetch with clean params
+    setSearch(""); setStartDate(""); setEndDate("");
     setLoading(true);
     api.get("/recordings")
       .then(({ data }) => setRecordings(data.recordings || []))
@@ -59,315 +145,296 @@ export default function Recordings() {
 
   const handleDownload = (rec) => {
     const baseURL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-    const downloadUrl = rec.fileUrl.startsWith("http") ? rec.fileUrl : `${baseURL}${rec.fileUrl}`;
-    
-    // Trigger download in new tab
+    const url = rec.fileUrl.startsWith("http") ? rec.fileUrl : `${baseURL}${rec.fileUrl}`;
     const a = document.createElement("a");
-    a.href = downloadUrl;
-    a.download = rec.fileName;
-    a.target = "_blank";
-    a.click();
+    a.href = url; a.download = rec.fileName; a.target = "_blank"; a.click();
   };
-
-  const handleDeleteClick = (rec) => {
-    setShowConfirmModal(rec);
-  };
-
+  const handleDeleteClick  = (rec) => setShowConfirmModal(rec);
   const confirmDelete = async () => {
     if (!showConfirmModal) return;
-    const targetId = showConfirmModal._id;
-    setDeletingId(targetId);
-    setShowConfirmModal(null);
+    const id = showConfirmModal._id;
+    setDeletingId(id); setShowConfirmModal(null);
     try {
-      await api.delete(`/recordings/${targetId}`);
-      // Smoothly update UI
-      setRecordings((prev) => prev.filter((r) => r._id !== targetId));
+      await api.delete(`/recordings/${id}`);
+      setRecordings((prev) => prev.filter((r) => r._id !== id));
     } catch (err) {
-      console.error("[Recordings] Deletion failed:", err);
-      alert("Failed to delete recording: " + (err.response?.data?.message || err.message));
-    } finally {
-      setDeletingId(null);
-    }
+      alert("Failed to delete: " + (err.response?.data?.message || err.message));
+    } finally { setDeletingId(null); }
   };
 
-  // Format Helpers
-  const formatDuration = (seconds) => {
-    if (!seconds) return "0s";
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-
-    let res = "";
-    if (hrs > 0) res += `${hrs}h `;
-    if (mins > 0 || hrs > 0) res += `${mins}m `;
-    res += `${secs}s`;
-    return res;
+  /* ── format helpers ── */
+  const formatDuration = (s) => {
+    if (!s) return "0s";
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return `${h > 0 ? h + "h " : ""}${(m > 0 || h > 0) ? m + "m " : ""}${sec}s`;
   };
-
-  const formatFileSize = (bytes) => {
-    if (!bytes) return "0 Bytes";
-    const k = 1024;
-    const dm = 1;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+  const formatFileSize = (b) => {
+    if (!b) return "0 Bytes";
+    const k = 1024, sizes = ["Bytes","KB","MB","GB"], i = Math.floor(Math.log(b) / Math.log(k));
+    return parseFloat((b / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
   };
-
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const formatDate = (d) => new Date(d).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric", hour:"2-digit", minute:"2-digit" });
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      {/* Premium Header */}
-      <header className="shrink-0 border-b border-slate-200 bg-white shadow-sm px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link to="/" className="text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-1.5">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            <span className="text-sm font-medium">Dashboard</span>
-          </Link>
-          <span className="text-slate-300">|</span>
-          <span className="font-semibold text-slate-800 text-lg">Recordings</span>
+    <div style={st.root}>
+
+      {/* ═══ TOP NAV ═══ */}
+      <header style={st.topNav}>
+        <div style={st.topNavLeft}>
+          <span style={st.logo}>MeetNova</span>
+          <nav style={st.navLinks}>
+            {["Products","Solutions","Resources","Plans & Pricing"].map((item) => (
+              <button key={item} onClick={() => item === "Plans & Pricing" && navigate("/pricing")} style={st.navLink}>
+                {item}
+              </button>
+            ))}
+          </nav>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-slate-600 hidden sm:inline">{user?.email}</span>
-          <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold uppercase tracking-wider">
-            {user?.plan || "Free"} Plan
-          </span>
+        <div style={st.topNavRight}>
+          <button onClick={() => navigate("/schedule")} style={st.navLinkHighlight}>Schedule</button>
+          <button onClick={handleJoinMeeting}           style={st.navLinkHighlight}>Join</button>
+          <button onClick={handleHostMeeting}           style={st.navLinkHighlightDrop}>Host <ChevronDown /></button>
+          <button                                       style={st.navLinkHighlightDrop}>Web App <ChevronDown /></button>
+
+          {/* Avatar */}
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setShowProfileMenu((p) => !p)} style={st.avatar} title={user?.name}>
+              {initials}
+            </button>
+            {showProfileMenu && (
+              <UserProfileMenu
+                user={user}
+                onLogout={handleLogout}
+                onClose={() => setShowProfileMenu(false)}
+              />
+            )}
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-8 flex flex-col gap-6">
-        {/* Title */}
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold text-slate-900">Recording Library</h1>
-          <p className="text-sm text-slate-500">Manage and access all call recordings saved to your account</p>
-        </div>
+      <div style={st.bodyRow}>
 
-        {/* Filter Panel */}
-        <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-          <form onSubmit={handleSearchSubmit} className="flex flex-wrap items-end gap-4">
-            <div className="flex-1 min-w-[240px]">
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                Search
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search by meeting name or room code..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl bg-slate-50 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-                />
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        {/* ═══ LEFT SIDEBAR ═══ */}
+        <aside style={st.sidebar}>
+          <div style={st.sidebarInner}>
+            {/* Home */}
+            <button
+              onClick={() => navigate("/")}
+              style={{ ...st.sidebarBtn, display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}
+            >
+              <HomeIcon /><span>Home</span>
+            </button>
+            <div style={st.sidebarDivider} />
+            <p style={{ ...st.sidebarGroupLabel, marginTop: 12 }}>My Products</p>
+            <ul style={st.sidebarList}>
+              {sidebarItems.map((item) => (
+                <li key={item.label} style={st.sidebarItem}>
+                  <button
+                    onClick={() => handleSidebarClick(item.label)}
+                    style={{
+                      ...st.sidebarBtn,
+                      background: item.label === "Recordings" ? "var(--sidebar-active-bg, #eff6ff)" : "none",
+                      color:      item.label === "Recordings" ? "var(--sidebar-active-color, #1a6ff4)" : "var(--sidebar-text, #1e293b)",
+                      fontWeight: item.label === "Recordings" ? "600"     : "500",
+                    }}
+                  >
+                    <span>{item.label}</span>
+                    <span style={st.sidebarIcons}>
+                      {item.badge    && <span style={st.newBadge}>{item.badge}</span>}
+                      {item.external && <span style={st.externalIcon}><ExternalIcon /></span>}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            <div style={st.sidebarDivider} />
+
+            {/* My Account */}
+            <button style={st.sidebarCollapsible} onClick={() => setMyAccountOpen((p) => !p)}>
+              <span style={{ transition: "transform 0.2s", display: "inline-flex", transform: myAccountOpen ? "rotate(90deg)" : "rotate(0deg)" }}>
+                <ChevronRight />
+              </span>
+              <span>My Account</span>
+            </button>
+            {myAccountOpen && (
+              <ul style={st.subMenu}>
+                <li>
+                  <button style={st.subMenuItem} onClick={() => navigate("/profile")}>Profile</button>
+                </li>
+                <li>
+                  <button style={st.subMenuItem} onClick={() => navigate("/")}>Settings</button>
+                </li>
+              </ul>
+            )}
+
+            {/* Admin */}
+            {user?.role === "admin" && (
+              <button style={st.sidebarCollapsible} onClick={() => navigate("/admin")}>
+                <ChevronRight /><span>Admin</span>
+              </button>
+            )}
+          </div>
+        </aside>
+
+        {/* ═══ MAIN CONTENT ═══ */}
+        <main style={st.main}>
+          {/* Title */}
+          <div style={{ marginBottom: 24 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary, #1e293b)", margin: "0 0 4px" }}>Recording Library</h1>
+            <p style={{ fontSize: 13, color: "var(--text-muted, #64748b)", margin: 0 }}>Manage and access all call recordings saved to your account</p>
+          </div>
+ 
+          {/* Filter Panel */}
+          <div style={{ background: "var(--bg-card, #fff)", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: 16, padding: "18px 20px", marginBottom: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+            <form onSubmit={handleSearchSubmit} style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 16 }}>
+              <div style={{ flex: 1, minWidth: 240 }}>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Search</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="text"
+                    placeholder="Search by meeting name or room code..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    style={{ width: "100%", boxSizing: "border-box", paddingLeft: 36, paddingRight: 12, paddingTop: 9, paddingBottom: 9, border: "1px solid var(--border-input, #e2e8f0)", borderRadius: 10, background: "var(--bg-input, #f8fafc)", fontSize: 13, color: "var(--input-text, #1e293b)", outline: "none", fontFamily: "inherit" }}
+                  />
+                  <svg style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted, #94a3b8)" }} width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 </div>
               </div>
-            </div>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>From Date</label>
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+                  style={{ border: "1px solid var(--border-input, #e2e8f0)", borderRadius: 10, padding: "9px 12px", background: "var(--bg-input, #f8fafc)", fontSize: 13, color: "var(--input-text, #1e293b)", outline: "none", fontFamily: "inherit" }} />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>To Date</label>
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+                  style={{ border: "1px solid var(--border-input, #e2e8f0)", borderRadius: 10, padding: "9px 12px", background: "var(--bg-input, #f8fafc)", fontSize: 13, color: "var(--input-text, #1e293b)", outline: "none", fontFamily: "inherit" }} />
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="submit"
+                  style={{ background: "var(--accent-blue, #1a6ff4)", color: "#fff", border: "none", borderRadius: 10, padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  Search
+                </button>
+                {(search || startDate || endDate) && (
+                  <button type="button" onClick={handleClearFilters}
+                    style={{ background: "var(--btn-outline-bg, #fff)", color: "var(--btn-outline-text, #64748b)", border: "1px solid var(--btn-outline-border, #e2e8f0)", borderRadius: 10, padding: "9px 16px", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                    Clear
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
 
-            <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                From Date
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-              />
+          {/* Error */}
+          {error && (
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", borderRadius: 10, padding: "10px 16px", fontSize: 13, marginBottom: 20 }}>
+              {error}
             </div>
+          )}
 
-            <div className="w-full sm:w-auto">
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                To Date
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-              />
+          {/* Content */}
+          {loading ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 0", gap: 12 }}>
+              <div style={{ width: 40, height: 40, border: "4px solid #dbeafe", borderTop: "4px solid #1a6ff4", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              <p style={{ fontSize: 13, color: "#94a3b8" }}>Loading your recordings...</p>
             </div>
-
-            <div className="flex gap-2 w-full md:w-auto md:ml-auto">
-              <button
-                type="submit"
-                className="flex-1 md:flex-none rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2 text-sm transition-colors shadow-sm"
-              >
-                Search
-              </button>
-              {(search || startDate || endDate) && (
-                <button
-                  type="button"
-                  onClick={handleClearFilters}
-                  className="rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium px-4 py-2 text-sm transition-colors"
-                >
-                  Clear Filters
+          ) : recordings.length === 0 ? (
+            <div style={{ background: "var(--bg-card, #fff)", border: "1.5px dashed var(--border-color, #e2e8f0)", borderRadius: 20, padding: "64px 24px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+              <div style={{ width: 56, height: 56, background: "var(--bg-primary, #f1f5f9)", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="var(--text-muted, #94a3b8)">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary, #1e293b)", margin: "0 0 6px" }}>No recordings found</h3>
+              <p style={{ fontSize: 13, color: "var(--text-muted, #64748b)", maxWidth: 340, margin: "0 0 20px" }}>
+                {search || startDate || endDate
+                  ? "No recordings match your filters. Try adjusting your search."
+                  : "Recordings saved during calls will appear here."}
+              </p>
+              {(search || startDate || endDate) ? (
+                <button onClick={handleClearFilters}
+                  style={{ background: "var(--accent-blue, #1a6ff4)", color: "#fff", border: "none", borderRadius: 10, padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  Reset Filters
+                </button>
+              ) : (
+                <button onClick={() => navigate("/")}
+                  style={{ background: "var(--accent-blue, #1a6ff4)", color: "#fff", border: "none", borderRadius: 10, padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  Start a Meeting
                 </button>
               )}
             </div>
-          </form>
-        </section>
-
-        {/* Error Notification */}
-        {error && (
-          <div className="rounded-xl bg-red-500/10 text-red-700 text-sm px-4 py-3 border border-red-500/20 shadow-sm">
-            {error}
-          </div>
-        )}
-
-        {/* Recording Grid List */}
-        {loading ? (
-          <div className="flex-1 flex flex-col items-center justify-center py-20 gap-3">
-            <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
-            <p className="text-sm font-medium text-slate-400">Loading your recordings...</p>
-          </div>
-        ) : recordings.length === 0 ? (
-          <div className="flex-1 border border-dashed border-slate-200 bg-white rounded-3xl p-16 flex flex-col items-center text-center shadow-sm">
-            <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 mb-4">
-              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
+          ) : (
+            <div style={{ display: "grid", gap: 20, gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+              {recordings.map((rec) => (
+                <div key={rec._id}
+                  style={{ background: "var(--bg-card, #fff)", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: 16, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column", opacity: deletingId === rec._id ? 0.5 : 1, pointerEvents: deletingId === rec._id ? "none" : "auto" }}>
+                  {/* Thumbnail */}
+                  <div style={{ height: 130, background: "#0f172a", position: "relative", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)", zIndex: 1 }} />
+                    <span style={{ position: "absolute", top: 10, left: 10, background: "rgba(59,130,246,0.9)", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, zIndex: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>{rec.meetingCode}</span>
+                    <span style={{ position: "absolute", bottom: 10, right: 10, background: "rgba(0,0,0,0.75)", color: "#fff", fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 6, zIndex: 2 }}>{formatDuration(rec.duration)}</span>
+                    <div style={{ width: 44, height: 44, borderRadius: "50%", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+                      <svg width="20" height="20" fill="white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                  </div>
+                  {/* Info */}
+                  <div style={{ padding: "16px 16px 14px", flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div>
+                      <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary, #1e293b)", margin: "0 0 3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={rec.title}>{rec.title}</h3>
+                      <p style={{ fontSize: 12, color: "var(--text-muted, #94a3b8)", margin: 0 }}>{formatDate(rec.createdAt)}</p>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid var(--border-color, #f1f5f9)", paddingTop: 10, fontSize: 12, color: "var(--text-muted, #64748b)" }}>
+                      <span>Size: <strong style={{ color: "var(--text-primary, #1e293b)" }}>{formatFileSize(rec.fileSize)}</strong></span>
+                      <span style={{ background: "var(--bg-primary, #f1f5f9)", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 500, color: "var(--text-secondary, #475569)" }}>
+                        {rec.storageType === "s3" ? "Cloud" : "Local Server"}
+                      </span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <button onClick={() => handleDownload(rec)}
+                        style={{ background: "var(--accent-blue-bg, #eff6ff)", color: "var(--accent-blue, #1a6ff4)", border: "none", borderRadius: 10, padding: "8px 0", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}>
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Download
+                      </button>
+                      <button onClick={() => handleDeleteClick(rec)}
+                        style={{ background: "#fff1f2", color: "#e11d48", border: "none", borderRadius: 10, padding: "8px 0", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "inherit" }}>
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <h3 className="text-lg font-semibold text-slate-800 mb-1">No recordings found</h3>
-            <p className="text-sm text-slate-500 max-w-sm mb-6">
-              {search || startDate || endDate
-                ? "No recordings match your search filters. Try adjusting dates or keywords."
-                : "Recordings you save during calls will automatically show up here."}
-            </p>
-            {(search || startDate || endDate) ? (
-              <button
-                onClick={handleClearFilters}
-                className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2.5 text-sm transition-colors shadow-sm"
-              >
-                Reset search filters
-              </button>
-            ) : (
-              <Link
-                to="/"
-                className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2.5 text-sm transition-colors shadow-sm"
-              >
-                Start a meeting now
-              </Link>
-            )}
-          </div>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {recordings.map((rec) => (
-              <div
-                key={rec._id}
-                className={`bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex flex-col ${
-                  deletingId === rec._id ? "opacity-50 pointer-events-none" : ""
-                }`}
-              >
-                {/* Visual card header */}
-                <div className="h-32 bg-slate-900 relative flex items-center justify-center overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/60 to-transparent z-10" />
-                  
-                  {/* Decorative mesh vector */}
-                  <svg className="absolute inset-0 w-full h-full text-slate-800 opacity-20" fill="currentColor" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    <path d="M0,0 L100,100 L0,100 Z" />
-                  </svg>
-                  
-                  {/* Duration badge */}
-                  <span className="absolute bottom-3 right-3 bg-black/75 backdrop-blur-md text-white text-xs font-semibold px-2 py-1 rounded-md z-20">
-                    {formatDuration(rec.duration)}
-                  </span>
-                  
-                  {/* Room code badge */}
-                  <span className="absolute top-3 left-3 bg-blue-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider z-20 shadow-sm">
-                    {rec.meetingCode}
-                  </span>
-
-                  {/* Playback graphic overlay */}
-                  <div className="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white backdrop-blur-sm z-20">
-                    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Card Content */}
-                <div className="p-5 flex-1 flex flex-col gap-4">
-                  <div className="flex-1 flex flex-col gap-1">
-                    <h3 className="font-semibold text-slate-800 text-sm line-clamp-1" title={rec.title}>
-                      {rec.title}
-                    </h3>
-                    <p className="text-xs text-slate-400">{formatDate(rec.createdAt)}</p>
-                  </div>
-
-                  <div className="border-t border-slate-100 pt-3 flex items-center justify-between text-xs text-slate-500">
-                    <span>Size: <strong className="text-slate-700">{formatFileSize(rec.fileSize)}</strong></span>
-                    <span className="capitalize px-2 py-0.5 rounded bg-slate-100 font-medium text-[10px] text-slate-600">
-                      {rec.storageType === "s3" ? "Cloud storage" : "Local server"}
-                    </span>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="grid grid-cols-2 gap-2 mt-1">
-                    <button
-                      onClick={() => handleDownload(rec)}
-                      className="rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 font-semibold py-2 text-xs transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      Download
-                    </button>
-                    <button
-                      onClick={() => handleDeleteClick(rec)}
-                      className="rounded-xl bg-red-50 text-red-600 hover:bg-red-100 font-semibold py-2 text-xs transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </main>
-
-      {/* Confirmation Modal */}
+          )}
+        </main>
+      </div>
+ 
+      {/* ─── CONFIRM DELETE MODAL ─── */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-sm w-full shadow-2xl flex flex-col text-slate-800">
-            <h3 className="text-lg font-bold text-slate-900 mb-2">Delete Recording?</h3>
-            <p className="text-sm text-slate-500 mb-6">
-              Are you sure you want to permanently delete <strong>{showConfirmModal.title}</strong>? 
-              This will remove the file from cloud storage and delete the database record. This action cannot be undone.
+        <div style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", padding: 16 }}>
+          <div style={{ background: "var(--bg-card, #fff)", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: 20, padding: 28, maxWidth: 400, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: "var(--text-primary, #1e293b)", margin: "0 0 10px" }}>Delete Recording?</h3>
+            <p style={{ fontSize: 13, color: "var(--text-muted, #64748b)", margin: "0 0 24px" }}>
+              Are you sure you want to permanently delete <strong>{showConfirmModal.title}</strong>? This action cannot be undone.
             </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowConfirmModal(null)}
-                className="rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold px-4 py-2 text-sm transition-colors"
-              >
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setShowConfirmModal(null)}
+                style={{ background: "var(--btn-outline-bg, #fff)", border: "1px solid var(--btn-outline-border, #e2e8f0)", color: "var(--btn-outline-text, #475569)", borderRadius: 10, padding: "8px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                 Cancel
               </button>
-              <button
-                onClick={confirmDelete}
-                className="rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold px-5 py-2 text-sm transition-colors shadow-md"
-              >
+              <button onClick={confirmDelete}
+                style={{ background: "#e11d48", color: "#fff", border: "none", borderRadius: 10, padding: "8px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                 Delete Permanently
               </button>
             </div>
           </div>
         </div>
       )}
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

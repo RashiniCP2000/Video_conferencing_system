@@ -24,7 +24,21 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
 }
 
 const app = express();
-app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    const allowed = [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      process.env.CLIENT_ORIGIN
+    ].filter(Boolean);
+    if (!origin || allowed.includes(origin) || origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:")) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
+  credentials: true
+}));
 
 // Stripe webhook needs raw body for signature verification
 // We'll handle this by placing it before express.json() in index.js 
