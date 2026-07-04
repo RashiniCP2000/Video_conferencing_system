@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import SupportModal from "../components/SupportModal.jsx";
+import MeetNovaLogo from "../components/MeetNovaLogo.jsx";
 
 // Unsplash premium image URLs
 const IMAGES = {
@@ -284,10 +285,7 @@ export default function Landing() {
       <header className="sticky top-0 z-50 bg-[#0c142c] border-b border-slate-800 px-6 py-4 flex items-center justify-between text-white transition-all shadow-md">
         <div className="flex items-center gap-8">
           {/* Logo */}
-          <Link to="/" className="text-2xl font-black tracking-tight text-white hover:opacity-90 flex items-center gap-1.5">
-            <span className="bg-blue-600 px-2 py-0.5 rounded text-white text-base font-extrabold uppercase">Meet</span>
-            <span className="text-blue-400">Nova</span>
-          </Link>
+          <MeetNovaLogo size="lg" variant="dark" linkTo="/" />
 
           {/* Navigation Links */}
           <nav className="hidden xl:flex items-center gap-6 text-[15px] font-medium text-slate-300">
@@ -935,6 +933,213 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ══════════════════════════════════════════
+           MAIN FOOTER
+      ══════════════════════════════════════════ */}
+      <footer style={{
+        background: "linear-gradient(180deg, #060d1f 0%, #030812 100%)",
+        borderTop: "1px solid rgba(255,255,255,0.06)",
+        color: "#94a3b8",
+        fontFamily: "inherit",
+      }}>
+
+        {/* ── Top Newsletter Bar ── */}
+        <div style={{
+          background: "linear-gradient(90deg, rgba(26,111,244,0.12) 0%, rgba(6,182,212,0.08) 100%)",
+          borderBottom: "1px solid rgba(255,255,255,0.05)",
+          padding: "28px 48px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          flexWrap: "wrap", gap: "16px",
+        }}>
+          <div>
+            <p style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#f1f5f9" }}>
+              Stay up to date with MeetNova
+            </p>
+            <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#64748b" }}>
+              Product news, updates, and early access announcements.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <input
+              type="email"
+              placeholder="Enter your email"
+              style={{
+                padding: "9px 16px", borderRadius: "10px",
+                border: "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.05)",
+                color: "#f1f5f9", fontSize: "13px", outline: "none",
+                width: "220px",
+              }}
+            />
+            <button style={{
+              padding: "9px 18px", borderRadius: "10px", border: "none",
+              background: "linear-gradient(135deg,#1a6ff4,#06b6d4)",
+              color: "#fff", fontSize: "13px", fontWeight: 700, cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}>
+              Subscribe
+            </button>
+          </div>
+        </div>
+
+        {/* ── Main Link Columns ── */}
+        <div style={{
+          maxWidth: "1280px", margin: "0 auto",
+          padding: "60px 48px 40px",
+          display: "grid",
+          gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr",
+          gap: "40px",
+        }}>
+
+          {/* Brand Column */}
+          <div>
+              <MeetNovaLogo size="md" variant="dark" linkTo="/" />
+            <p style={{ fontSize: "13.5px", lineHeight: 1.7, color: "#64748b", marginBottom: "22px", maxWidth: "240px" }}>
+              The all-in-one communication platform for modern teams — encrypted video meetings, notes, whiteboards, phone, and more.
+            </p>
+            {/* Social Icons */}
+            <div style={{ display: "flex", gap: "10px" }}>
+              {[
+                { title: "Twitter / X", path: "M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.261 5.649zm-1.161 17.52h1.833L7.084 4.126H5.117z" },
+                { title: "LinkedIn", path: "M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2z M4 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4z" },
+                { title: "GitHub", path: "M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" },
+                { title: "YouTube", path: "M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58 2.78 2.78 0 0 0 1.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.95-1.96A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58zM9.75 15.02V8.98L15.5 12l-5.75 3.02z" },
+              ].map((s) => (
+                <a key={s.title} href="#" title={s.title} style={{
+                  width: "34px", height: "34px", borderRadius: "8px",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "#64748b", transition: "all 0.2s",
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.background="rgba(26,111,244,0.15)"; e.currentTarget.style.color="#60a5fa"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background="rgba(255,255,255,0.05)"; e.currentTarget.style.color="#64748b"; }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="15" height="15">
+                    <path d={s.path} strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {/* Products Column */}
+          <div>
+            <h4 style={footerHeading}>Products</h4>
+            <ul style={footerList}>
+              {["Meetings", "Whiteboard", "My Notes", "Phone", "Webinars", "Rooms", "Contact Center", "Productivity Suite"].map(item => (
+                <li key={item}><Link to="/login" style={footerLink} onMouseEnter={e => e.target.style.color="#60a5fa"} onMouseLeave={e => e.target.style.color="#64748b"}>{item}</Link></li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Solutions Column */}
+          <div>
+            <h4 style={footerHeading}>Solutions</h4>
+            <ul style={footerList}>
+              {[
+                { label: "Education Program", to: "/pricing?highlight=student" },
+                { label: "Corporate Meetings", to: "/pricing?highlight=corporate" },
+                { label: "Telehealth", to: "/pricing?highlight=basic" },
+                { label: "Remote Work", to: "/pricing" },
+                { label: "Hybrid Teams", to: "/pricing" },
+                { label: "Startups", to: "/pricing" },
+              ].map(item => (
+                <li key={item.label}><Link to={item.to} style={footerLink} onMouseEnter={e => e.target.style.color="#60a5fa"} onMouseLeave={e => e.target.style.color="#64748b"}>{item.label}</Link></li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Resources Column */}
+          <div>
+            <h4 style={footerHeading}>Resources</h4>
+            <ul style={footerList}>
+              {[
+                { label: "Pricing", to: "/pricing" },
+                { label: "Sign Up Free", to: "/register" },
+                { label: "Sign In", to: "/login" },
+                { label: "Contact Sales", to: "/pricing" },
+                { label: "Support Center", action: true },
+                { label: "Schedule Meeting", to: "/login" },
+              ].map(item => (
+                <li key={item.label}>
+                  {item.action
+                    ? <button onClick={() => setSupportOpen(true)} style={{ ...footerLink, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                        onMouseEnter={e => e.target.style.color="#60a5fa"} onMouseLeave={e => e.target.style.color="#64748b"}>
+                        {item.label}
+                      </button>
+                    : <Link to={item.to} style={footerLink} onMouseEnter={e => e.target.style.color="#60a5fa"} onMouseLeave={e => e.target.style.color="#64748b"}>{item.label}</Link>
+                  }
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Company Column */}
+          <div>
+            <h4 style={footerHeading}>Company</h4>
+            <ul style={footerList}>
+              {[
+                { label: "About MeetNova", to: "/" },
+                { label: "Careers", to: "/" },
+                { label: "Blog", to: "/" },
+                { label: "Press & Media", to: "/" },
+                { label: "Privacy Policy", to: "/" },
+                { label: "Terms of Service", to: "/" },
+              ].map(item => (
+                <li key={item.label}><Link to={item.to} style={footerLink} onMouseEnter={e => e.target.style.color="#60a5fa"} onMouseLeave={e => e.target.style.color="#64748b"}>{item.label}</Link></li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        {/* ── Trust Badges ── */}
+        <div style={{
+          maxWidth: "1280px", margin: "0 auto",
+          padding: "0 48px 32px",
+          display: "flex", flexWrap: "wrap", gap: "12px",
+        }}>
+          {[
+            { icon: "🔒", label: "End-to-End Encrypted" },
+            { icon: "✅", label: "SOC 2 Compliant" },
+            { icon: "🌍", label: "GDPR Ready" },
+            { icon: "⚡", label: "99.9% Uptime SLA" },
+          ].map(badge => (
+            <div key={badge.label} style={{
+              display: "flex", alignItems: "center", gap: "7px",
+              padding: "6px 14px", borderRadius: "8px",
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              fontSize: "12px", color: "#475569",
+            }}>
+              <span>{badge.icon}</span>
+              <span>{badge.label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Bottom Copyright Bar ── */}
+        <div style={{
+          borderTop: "1px solid rgba(255,255,255,0.05)",
+          padding: "18px 48px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          flexWrap: "wrap", gap: "10px",
+          maxWidth: "1280px", margin: "0 auto",
+        }}>
+          <p style={{ margin: 0, fontSize: "12.5px", color: "#334155" }}>
+            © {new Date().getFullYear()} MeetNova, Inc. All rights reserved. Built with ❤️ for modern teams.
+          </p>
+          <div style={{ display: "flex", gap: "20px" }}>
+            {["Privacy", "Terms", "Cookies", "Accessibility"].map(l => (
+              <Link key={l} to="/" style={{ fontSize: "12px", color: "#334155", textDecoration: "none" }}
+                onMouseEnter={e => e.target.style.color="#60a5fa"} onMouseLeave={e => e.target.style.color="#334155"}>
+                {l}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </footer>
+
       {/* ── Floating Chat Button ── */}
       <button
         onClick={() => setSupportOpen(true)}
@@ -950,3 +1155,29 @@ export default function Landing() {
     </div>
   );
 }
+
+const footerHeading = {
+  fontSize: "11px",
+  fontWeight: 700,
+  letterSpacing: "0.1em",
+  textTransform: "uppercase",
+  color: "#f1f5f9",
+  marginBottom: "16px",
+};
+
+const footerList = {
+  listStyle: "none",
+  padding: 0,
+  margin: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: "10px",
+};
+
+const footerLink = {
+  fontSize: "13.5px",
+  color: "#64748b",
+  textDecoration: "none",
+  transition: "color 0.15s",
+};
+

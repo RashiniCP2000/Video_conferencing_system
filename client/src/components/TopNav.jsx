@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import MeetNovaLogo from "./MeetNovaLogo.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import api from "../api/client.js";
 import UserProfileMenu from "./UserProfileMenu.jsx";
@@ -114,7 +115,7 @@ export default function TopNav() {
     <header style={styles.topNav}>
       <div style={styles.topNavLeft}>
         {/* MeetNova logo */}
-        <Link to="/" style={styles.logo}>MeetNova</Link>
+        <MeetNovaLogo size="md" variant="dynamic" linkTo="/" />
       </div>
 
       <div style={styles.topNavRight}>

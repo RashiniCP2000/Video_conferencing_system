@@ -2,11 +2,10 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import MeetNovaLogo from "../components/MeetNovaLogo.jsx";
 import heroImage from "../assets/register 3.webp";
 
 export default function Register() {
-  const navigate = useNavigate();
-  const { loginWithToken } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -36,7 +35,7 @@ export default function Register() {
     <div className="min-h-screen bg-[#f8fafc] px-4 py-6">
       <div className="mx-auto w-full max-w-6xl">
         <header className="mb-6 flex items-center justify-between text-sm text-slate-600">
-          <Link to="/" className="text-2xl font-bold text-blue-700 hover:opacity-90 transition-opacity">MeetNova</Link>
+          <MeetNovaLogo size="lg" variant="light" linkTo="/" />
           <div className="flex flex-wrap items-center gap-4">
             <span>Already have an account?</span>
             <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700">

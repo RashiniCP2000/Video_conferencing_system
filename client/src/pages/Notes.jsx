@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import Sidebar from "../components/Sidebar.jsx";
+import MeetNovaLogo from "../components/MeetNovaLogo.jsx";
 
 /* ─── Storage key ─────────────────────────────────────────── */
 const LS_KEY = "meetnova_notes";
@@ -296,7 +297,7 @@ export default function Notes() {
       {/* ═══ TOP NAV ═══ */}
       <header style={st.topNav}>
         <div style={st.topNavLeft}>
-          <Link to="/" style={{ ...st.logo, textDecoration: "none" }}>MeetNova</Link>
+          <MeetNovaLogo size="md" variant="dark" linkTo="/" />
           <nav style={st.navLinks}>
             {["Products", "Solutions", "Resources", "Plans & Pricing"].map(item => (
               <button key={item} style={st.navLink}

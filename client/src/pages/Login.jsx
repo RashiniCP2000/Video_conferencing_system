@@ -2,11 +2,10 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import MeetNovaLogo from "../components/MeetNovaLogo.jsx";
 import heroImage from "../assets/login-1.jpg";
 
 const benefits = [
-  "Up to 40 minutes per meeting",
-  "100 participants in a single room",
   "Secure encrypted audio and video",
   "Easy scheduling and calendar sync",
   "Fast screen sharing and chat",
@@ -51,7 +50,7 @@ export default function Login() {
       <div className="mx-auto w-full max-w-5xl">
         <header className="mb-5 flex flex-col gap-2 border-b border-slate-200 pb-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/" className="text-3xl font-black tracking-tight text-blue-700 hover:opacity-90 transition-opacity">MeetNova</Link>
+            <MeetNovaLogo size="lg" variant="light" linkTo="/" />
           </div>
           <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
             <span>New to MeetNova?</span>

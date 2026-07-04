@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import MeetNovaLogo from "./MeetNovaLogo.jsx";
 
 /* ─── Modern outline SVG Icons ───────────────────────────────────── */
 const DoubleCrescentLogo = () => (
@@ -494,7 +495,7 @@ export default function Sidebar({ activeTab, activeSubPage, onSubPageChange }) {
       <div style={styles.navTrack}>
         {/* Workspace Dropper */}
         <div style={styles.workspacePill} onClick={() => navigate("/")}>
-          <span style={styles.workspaceTitle}>MeetNova</span>
+          <MeetNovaLogo size="sm" variant="dynamic" linkTo="/" />
           <span style={styles.workspacePlus}>
             <PlusIcon />
           </span>
