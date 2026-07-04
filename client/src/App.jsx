@@ -2,15 +2,19 @@ import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import api from "./api/client.js";
 import { useAuth } from "./context/AuthContext.jsx";
-import Home from "./pages/Home.jsx";
+import Landing from "./pages/Landing.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
 import Pricing from "./pages/Pricing.jsx";
+import UserDashboard from "./pages/UserDashboard.jsx";
 import VerifyStudent from "./pages/VerifyStudent.jsx";
 import VerifyCorporate from "./pages/VerifyCorporate.jsx";
 import PaymentSuccess from "./pages/PaymentSuccess.jsx";
+import ConfirmUpgrade from "./pages/ConfirmUpgrade.jsx";
+import CheckoutBilling from "./pages/CheckoutBilling.jsx";
+import CheckoutPayment from "./pages/CheckoutPayment.jsx";
 import Recordings from "./pages/Recordings.jsx";
 import CalendarConnect from "./pages/CalendarConnect.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
@@ -22,7 +26,8 @@ import Meetings from "./pages/Meetings.jsx";
 import Profile from "./pages/Profile.jsx";
 import Calendar from "./pages/Calendar.jsx";
 import Tasks from "./pages/Tasks.jsx";
-
+import Notes from "./pages/Notes.jsx";
+import Whiteboard from "./pages/Whiteboard.jsx";
 
 const MeetingRoom = lazy(() => import("./pages/MeetingRoom.jsx"));
 
@@ -40,15 +45,38 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+function isSystemAdmin(user) {
+  return user?.role === "admin" && user?.email?.toLowerCase().endsWith("@admin.com");
+}
+
+function getDashboardPath(user) {
+  return isSystemAdmin(user) ? "/admin" : "/dashboard";
+}
+
+function RootRoute() {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) return <Landing />;
+  if (!user) return <PageLoader />;
+  return <Navigate to={getDashboardPath(user)} replace />;
+}
+
+function UserDashboardRoute({ children }) {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!user) return <PageLoader />;
+  return children;
+}
+
 function AdminRoute({ children }) {
   const { isAuthenticated, user } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (user && user.role !== "admin") return <Navigate to="/" replace />;
+  if (!user) return <PageLoader />;
+  if (!isSystemAdmin(user)) return <Navigate to="/dashboard" replace />;
   return children;
 }
 
 export default function App() {
-  const { token, loginWithToken, logout, setUserFromBootstrap } = useAuth();
+  const { token, logout, setUserFromBootstrap } = useAuth();
 
   useEffect(() => {
     if (!token) return;
@@ -67,19 +95,16 @@ export default function App() {
         <Route path="/education-thank-you" element={<ProtectedRoute><EducationDataThankYou /></ProtectedRoute>} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Home />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/" element={<RootRoute />} />
+        <Route path="/dashboard" element={<UserDashboardRoute><UserDashboard /></UserDashboardRoute>} />
         <Route path="/meet/:meetingCode" element={<MeetingRoom />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/verify/student" element={<ProtectedRoute><VerifyStudent /></ProtectedRoute>} />
         <Route path="/verify/corporate" element={<ProtectedRoute><VerifyCorporate /></ProtectedRoute>} />
         <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
+        <Route path="/confirm-upgrade" element={<ProtectedRoute><ConfirmUpgrade /></ProtectedRoute>} />
+        <Route path="/checkout/billing" element={<ProtectedRoute><CheckoutBilling /></ProtectedRoute>} />
+        <Route path="/checkout/payment" element={<ProtectedRoute><CheckoutPayment /></ProtectedRoute>} />
         <Route path="/recordings" element={<ProtectedRoute><Recordings /></ProtectedRoute>} />
         <Route path="/schedule" element={<ProtectedRoute><ScheduleMeeting /></ProtectedRoute>} />
         <Route path="/meetings/:tab" element={<ProtectedRoute><Meetings /></ProtectedRoute>} />
@@ -88,10 +113,10 @@ export default function App() {
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
         <Route path="/tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
+        <Route path="/notes" element={<ProtectedRoute><Notes /></ProtectedRoute>} />
+        <Route path="/whiteboard" element={<ProtectedRoute><Whiteboard /></ProtectedRoute>} />
         <Route path="/settings/calendar" element={<ProtectedRoute><CalendarConnect /></ProtectedRoute>} />
         <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-
-
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>

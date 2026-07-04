@@ -1,8 +1,12 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate, Link, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import api from "../api/client.js";
 import UserProfileMenu from "../components/UserProfileMenu.jsx";
+import Sidebar from "../components/Sidebar.jsx";
+import TopNav from "../components/TopNav.jsx";
+import JoinMeetingModal from "../components/JoinMeetingModal.jsx";
+import { getUserStorageKey } from "../utils/userStorage.js";
 
 /* ─── Icon helpers ─────────────────────────────────────────────── */
 const CalendarIcon = () => (
@@ -63,7 +67,7 @@ const ChatIcon = () => (
 const sidebarItems = [
   { label: "Meetings", external: false, badge: null },
   { label: "Recordings", external: false, badge: null },
-  { label: "Hub", external: true, badge: "New" },
+  { label: "Whiteboard", external: false, badge: "New" },
   { label: "Notes", external: false, badge: null },
   { label: "Tasks", external: true, badge: null },
   { label: "Scheduler", external: true, badge: null },
@@ -73,13 +77,38 @@ const sidebarItems = [
 /* ─── Component ─────────────────────────────────────────────────── */
 export default function Home() {
   const navigate = useNavigate();
-  const { user, logout, theme, changeTheme, setUserFromBootstrap } = useAuth();
+  const location = useLocation();
+  const { isAuthenticated, user, logout, theme, changeTheme, setUserFromBootstrap } = useAuth();
+
+  // ── ALL hooks must be declared before any conditional return ──
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [myAccountOpen, setMyAccountOpen] = useState(false);
-  const [adminOpen, setAdminOpen] = useState(false);
+  const [joinOpen, setJoinOpen] = useState(false);
   const [activeSubPage, setActiveSubPage] = useState(null); // 'profile' | 'settings' | null
   const [meetings, setMeetings] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [recordings, setRecordings] = useState([]);
+  const [loadingRecordings, setLoadingRecordings] = useState(true);
+
+  // ── AV Test modal state ──
+  const [avOpen, setAvOpen] = useState(false);
+  const [avStream, setAvStream] = useState(null);
+  const [avCameras, setAvCameras] = useState([]);
+  const [avMics, setAvMics] = useState([]);
+  const [avSpeakers, setAvSpeakers] = useState([]);
+  const [avSelectedCam, setAvSelectedCam] = useState("");
+  const [avSelectedMic, setAvSelectedMic] = useState("");
+  const [avSelectedSpk, setAvSelectedSpk] = useState("");
+  const [avVolume, setAvVolume] = useState(0);
+  const [avCamOff, setAvCamOff] = useState(false);
+  const [avMicOff, setAvMicOff] = useState(false);
+  const [avError, setAvError] = useState("");
+  const [avSpeakerPlaying, setAvSpeakerPlaying] = useState(false);
+  const avVideoRef = useRef(null);
+  const avStreamRef = useRef(null);
+  const avAnalyserRef = useRef(null);
+  const avRafRef = useRef(null);
 
   // Settings view states
   const [settingsLanguage, setSettingsLanguage] = useState(() => localStorage.getItem("meetnova_lang") || "English (US)");
@@ -106,9 +135,23 @@ export default function Home() {
     }
   }, [user, activeSubPage]);
 
+  // Sync subpage state with router navigation state
   useEffect(() => {
+    if (location.state && location.state.activeSubPage !== undefined) {
+      setActiveSubPage(location.state.activeSubPage);
+    }
+  }, [location]);
+
+  // Load dashboard data (meetings, tasks, recordings)
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    const meetingsKey = getUserStorageKey(user, "meetnova_scheduled_meetings");
+    const tasksKey = getUserStorageKey(user, "meetnova_tasks");
+
+    // 1. Scheduled meetings
     try {
-      const saved = JSON.parse(localStorage.getItem("meetnova_scheduled_meetings") || "[]");
+      const saved = JSON.parse(localStorage.getItem(meetingsKey) || "[]");
       const now = new Date();
       const parseMeetingDateTime = (m) => {
         if (!m.date) return new Date(0);
@@ -120,7 +163,33 @@ export default function Home() {
     } catch (e) {
       console.error(e);
     }
-  }, []);
+
+    // 2. Tasks
+    try {
+      const savedTasks = JSON.parse(localStorage.getItem(tasksKey) || "[]");
+      setTasks(savedTasks);
+    } catch (e) {
+      console.error(e);
+    }
+
+    // 3. Recordings
+    setLoadingRecordings(true);
+    api.get("/recordings")
+      .then(({ data }) => {
+        setRecordings(data.recordings || []);
+      })
+      .catch((err) => {
+        console.error("Failed to load recordings", err);
+      })
+      .finally(() => {
+        setLoadingRecordings(false);
+      });
+  }, [isAuthenticated, user, activeSubPage]);
+
+  // ── Conditional render AFTER all hooks ──
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
 
   const PERSONAL_ID = "543 517 4501";
 
@@ -140,10 +209,12 @@ export default function Home() {
   };
 
   const handleJoinMeeting = () => {
-    const code = prompt("Enter meeting code (e.g. ABCD):");
-    if (code && code.trim()) {
-      navigate(`/meet/${code.trim().toUpperCase()}`);
-    }
+    setJoinOpen(true);
+  };
+
+  const handleJoinConfirm = (code) => {
+    setJoinOpen(false);
+    navigate(`/meet/${code}`);
   };
 
   const handleCopyId = () => {
@@ -187,51 +258,256 @@ export default function Home() {
     }
   };
 
-  const renderDashboard = () => (
-    <>
-      {/* Profile Card */}
-      <div style={styles.profileCard}>
-        {/* Avatar */}
-        <div style={styles.profileAvatar}>
-          {initials}
-        </div>
-        <div style={styles.profileInfo}>
-          <h1 style={styles.profileName}>{user?.name || "User"}</h1>
-          <p style={styles.profilePlan}>
-            Plan:{" "}
-            <a href="#" style={styles.planLink}>Workplace Basic</a>
-          </p>
-          <button onClick={() => navigate("/pricing")} style={styles.managePlanBtn}>Manage Plan</button>
-          <a href="#" style={styles.viewPlanLink}>View Plan Details</a>
-        </div>
-      </div>
+  const handleToggleTask = (taskId) => {
+    const updated = tasks.map(t => {
+      if (t.id === taskId) {
+        const newStatus = t.status === "completed" ? "todo" : "completed";
+        return { ...t, status: newStatus };
+      }
+      return t;
+    });
+    setTasks(updated);
+    localStorage.setItem(getUserStorageKey(user, "meetnova_tasks"), JSON.stringify(updated));
+  };
 
-      {/* Recent Activity */}
-      <div style={styles.recentActivity}>
-        <h2 style={styles.recentTitle}>Recent activity</h2>
-        <div style={styles.emptyState}>
-          {/* Box illustration */}
-          <svg width="110" height="90" viewBox="0 0 110 90" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="15" y="38" width="80" height="48" rx="4" fill="#BFDBFE"/>
-            <rect x="15" y="38" width="80" height="48" rx="4" fill="url(#boxGrad)"/>
-            <path d="M15 38h80l-8-20H23L15 38z" fill="#60A5FA"/>
-            <path d="M55 18v20" stroke="#BFDBFE" strokeWidth="2"/>
-            <path d="M35 38l10-20" stroke="#93C5FD" strokeWidth="1.5"/>
-            <path d="M75 38l-10-20" stroke="#93C5FD" strokeWidth="1.5"/>
-            <path d="M15 38l40 12 40-12" stroke="#3B82F6" strokeWidth="1.5"/>
-            <path d="M55 50v36" stroke="#3B82F6" strokeWidth="1.5"/>
-            <rect x="38" y="24" width="34" height="8" rx="2" fill="#93C5FD"/>
-            <defs>
-              <linearGradient id="boxGrad" x1="15" y1="38" x2="95" y2="86" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#DBEAFE"/>
-                <stop offset="1" stopColor="#93C5FD"/>
-              </linearGradient>
-            </defs>
-          </svg>
+  const renderDashboard = () => {
+    const firstName = user?.name ? user.name.split(" ")[0] : "User";
+    const pendingTasksCount = tasks.filter(t => t.status !== "completed").length;
+    const upcomingMeetingsCount = meetings.length;
+
+    return (
+      <>
+        {/* Welcome Section */}
+        <div style={styles.welcomeCard}>
+          <div style={styles.welcomeLeft}>
+            <div style={styles.largeAvatar}>
+              {initials}
+            </div>
+            <div style={styles.welcomeTextGroup}>
+              <h1 style={styles.welcomeTitle}>Hello, {firstName}! 👋</h1>
+              <p style={styles.welcomeSubtitle}>
+                Welcome back to MeetNova. You have <strong style={{color: "var(--accent-blue)"}}>{upcomingMeetingsCount}</strong> upcoming meetings, <strong style={{color: "#ef4444"}}>{pendingTasksCount}</strong> pending tasks, and <strong style={{color: "#10b981"}}>{recordings.length}</strong> recordings available in your cloud library.
+              </p>
+              <div style={styles.planBadge}>
+                <span style={styles.planBadgeText}>Plan: {user?.plan || "Workplace Basic"}</span>
+              </div>
+            </div>
+          </div>
+          <div style={styles.welcomeRight}>
+            <button onClick={() => navigate("/pricing")} style={styles.welcomePrimaryBtn}>Upgrade Plan</button>
+          </div>
         </div>
-      </div>
-    </>
-  );
+
+        {/* Quick Stats Grid */}
+        <div style={styles.statsGrid}>
+          <div style={styles.statCard}>
+            <div style={{ ...styles.statIconContainer, background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="20" height="20">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
+            <div style={styles.statInfo}>
+              <span style={styles.statValue}>{upcomingMeetingsCount}</span>
+              <span style={styles.statLabel}>Scheduled Meetings</span>
+            </div>
+          </div>
+
+          <div style={styles.statCard}>
+            <div style={{ ...styles.statIconContainer, background: "rgba(239, 68, 68, 0.1)", color: "#ef4444" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="20" height="20">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+              </svg>
+            </div>
+            <div style={styles.statInfo}>
+              <span style={styles.statValue}>{pendingTasksCount}</span>
+              <span style={styles.statLabel}>Pending Tasks</span>
+            </div>
+          </div>
+
+          <div style={styles.statCard}>
+            <div style={{ ...styles.statIconContainer, background: "rgba(16, 185, 129, 0.1)", color: "#10b981" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="20" height="20">
+                <path d="M23 7l-7 5 7 5V7z" />
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+              </svg>
+            </div>
+            <div style={styles.statInfo}>
+              <span style={styles.statValue}>{recordings.length}</span>
+              <span style={styles.statLabel}>Cloud Recordings</span>
+            </div>
+          </div>
+
+          <div style={styles.statCard}>
+            <div style={{ ...styles.statIconContainer, background: "rgba(245, 158, 11, 0.1)", color: "#f59e0b" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="20" height="20">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            <div style={styles.statInfo}>
+              <span style={styles.statValue}>{(meetings.length * 0.75).toFixed(1)}h</span>
+              <span style={styles.statLabel}>Meeting Hours</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Dashboard Content Grid */}
+        <div style={styles.dashboardGrid}>
+          <div style={styles.gridLeftCol}>
+            {/* Checklist Widget */}
+            <div style={styles.widgetCard}>
+              <div style={styles.widgetHeader}>
+                <h3 style={styles.widgetTitle}>Active Tasks Checklist</h3>
+                <button onClick={() => navigate("/tasks")} style={styles.widgetActionLink}>Manage Tasks</button>
+              </div>
+              <div style={styles.widgetContent}>
+                {tasks.length > 0 ? (
+                  <div style={styles.taskList}>
+                    {tasks.slice(0, 4).map((task) => {
+                      const isCompleted = task.status === "completed";
+                      const priorityColor = task.priority === "high" ? "#ef4444" : task.priority === "medium" ? "#f59e0b" : "#10b981";
+                      const priorityBg = task.priority === "high" ? "rgba(239, 68, 68, 0.1)" : task.priority === "medium" ? "rgba(245, 158, 11, 0.1)" : "rgba(16, 185, 129, 0.1)";
+                      return (
+                        <div key={task.id} style={{ ...styles.taskRow, opacity: isCompleted ? 0.6 : 1 }}>
+                          <button
+                            onClick={() => handleToggleTask(task.id)}
+                            style={{
+                              ...styles.taskCheckbox,
+                              borderColor: isCompleted ? "#10b981" : "var(--border-input)",
+                              background: isCompleted ? "#10b981" : "transparent"
+                            }}
+                          >
+                            {isCompleted && (
+                              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" width="10" height="10">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </button>
+                          <div style={styles.taskDetails}>
+                            <span style={{
+                              ...styles.taskNameText,
+                              textDecoration: isCompleted ? "line-through" : "none"
+                            }}>
+                              {task.title}
+                            </span>
+                            <div style={styles.taskMetaRow}>
+                              <span style={{ ...styles.priorityTag, color: priorityColor, background: priorityBg }}>
+                                {task.priority?.toUpperCase()}
+                              </span>
+                              {task.dueDate && (
+                                <span style={styles.taskDueDateText}>
+                                  📅 Due {task.dueDate}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={styles.emptyWidgetState}>
+                    <p style={styles.emptyWidgetText}>No pending tasks found.</p>
+                    <button onClick={() => navigate("/tasks")} style={styles.widgetPrimaryBtn}>Create a Task</button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Recordings Widget */}
+            <div style={styles.widgetCard}>
+              <div style={styles.widgetHeader}>
+                <h3 style={styles.widgetTitle}>Recent Recordings</h3>
+                <button onClick={() => navigate("/recordings")} style={styles.widgetActionLink}>Library</button>
+              </div>
+              <div style={styles.widgetContent}>
+                {loadingRecordings ? (
+                  <div style={styles.emptyWidgetState}>
+                    <p style={styles.emptyWidgetText}>Loading recordings...</p>
+                  </div>
+                ) : recordings.length > 0 ? (
+                  <div style={styles.recordingsList}>
+                    {recordings.slice(0, 3).map((rec) => (
+                      <div key={rec._id || rec.id} style={styles.recordingRow}>
+                        <div style={styles.recordingIconWrapper}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                            <path d="M23 7l-7 5 7 5V7z" />
+                            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                          </svg>
+                        </div>
+                        <div style={styles.recordingDetails}>
+                          <span style={styles.recordingNameText}>{rec.topic || rec.meetingTitle || "Recorded Meeting"}</span>
+                          <span style={styles.recordingMetaText}>{rec.date || "Today"} · {rec.duration || "N/A"}</span>
+                        </div>
+                        <button
+                          onClick={() => navigate("/recordings")}
+                          style={styles.recordingPlayBtn}
+                          title="View recording"
+                        >
+                          Play
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={styles.emptyWidgetState}>
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.5" style={{ opacity: 0.5, marginBottom: 8 }}>
+                      <path d="M23 7l-7 5 7 5V7z" />
+                      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                    </svg>
+                    <p style={styles.emptyWidgetText}>No recordings available.</p>
+                    <span style={styles.emptyWidgetSubtext}>Host a meeting and hit record to see files here.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.gridRightCol}>
+            {/* Activity Feed Widget */}
+            <div style={styles.widgetCard}>
+              <div style={styles.widgetHeader}>
+                <h3 style={styles.widgetTitle}>Activity Feed</h3>
+              </div>
+              <div style={styles.widgetContent}>
+                <div style={styles.timelineList}>
+                  <div style={styles.timelineRow}>
+                    <span style={styles.timelineDot} />
+                    <div style={styles.timelineContent}>
+                      <p style={styles.timelineText}>Joined MeetNova Platform</p>
+                      <span style={styles.timelineTime}>System event</span>
+                    </div>
+                  </div>
+                  {meetings.length > 0 && (
+                    <div style={styles.timelineRow}>
+                      <span style={{ ...styles.timelineDot, background: "#3b82f6" }} />
+                      <div style={styles.timelineContent}>
+                        <p style={styles.timelineText}>Scheduled meeting: <strong>{meetings[0].topic}</strong></p>
+                        <span style={styles.timelineTime}>Recently</span>
+                      </div>
+                    </div>
+                  )}
+                  {tasks.length > 0 && (
+                    <div style={styles.timelineRow}>
+                      <span style={{ ...styles.timelineDot, background: "#f59e0b" }} />
+                      <div style={styles.timelineContent}>
+                        <p style={styles.timelineText}>Synchronized task list from storage</p>
+                        <span style={styles.timelineTime}>Active sync</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  };
 
   const renderSettings = () => (
     <div style={styles.settingsContainer}>
@@ -437,171 +713,224 @@ export default function Home() {
 
   const initials = user?.name?.charAt(0).toUpperCase() || "U";
 
+  /* ─── AV Test helpers ─────────────────────────────────────────── */
+  const stopAvStream = () => {
+    cancelAnimationFrame(avRafRef.current);
+    if (avStreamRef.current) {
+      avStreamRef.current.getTracks().forEach(t => t.stop());
+      avStreamRef.current = null;
+    }
+  };
+
+  const startVolumeMeter = (stream) => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      src.connect(analyser);
+      avAnalyserRef.current = analyser;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        analyser.getByteFrequencyData(data);
+        const avg = data.reduce((a, b) => a + b, 0) / data.length;
+        setAvVolume(Math.min(100, Math.round((avg / 128) * 100)));
+        avRafRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (e) {
+      console.warn("AudioContext not available", e);
+    }
+  };
+
+  const openAvTest = async () => {
+    setAvOpen(true);
+    setAvError("");
+    setAvCamOff(false);
+    setAvMicOff(false);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      avStreamRef.current = stream;
+      setAvStream(stream);
+      // Attach to video element
+      setTimeout(() => {
+        if (avVideoRef.current) avVideoRef.current.srcObject = stream;
+      }, 100);
+      // Enumerate devices
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cams = devices.filter(d => d.kind === "videoinput");
+      const mics = devices.filter(d => d.kind === "audioinput");
+      const spks = devices.filter(d => d.kind === "audiooutput");
+      setAvCameras(cams);
+      setAvMics(mics);
+      setAvSpeakers(spks);
+      const vidTrack = stream.getVideoTracks()[0];
+      const audTrack = stream.getAudioTracks()[0];
+      if (vidTrack) setAvSelectedCam(vidTrack.getSettings().deviceId || (cams[0]?.deviceId ?? ""));
+      if (audTrack) setAvSelectedMic(audTrack.getSettings().deviceId || (mics[0]?.deviceId ?? ""));
+      if (spks.length > 0) setAvSelectedSpk(spks[0].deviceId);
+      startVolumeMeter(stream);
+    } catch (err) {
+      console.error(err);
+      setAvError("⚠️ Could not access camera/microphone. Please allow permissions in your browser.");
+    }
+  };
+
+  const closeAvTest = () => {
+    stopAvStream();
+    setAvOpen(false);
+    setAvStream(null);
+    setAvVolume(0);
+    setAvCamOff(false);
+    setAvMicOff(false);
+    setAvError("");
+    setAvSpeakerPlaying(false);
+  };
+
+  const toggleAvCam = () => {
+    const stream = avStreamRef.current;
+    if (!stream) return;
+    stream.getVideoTracks().forEach(t => { t.enabled = avCamOff; });
+    setAvCamOff(v => !v);
+  };
+
+  const toggleAvMic = () => {
+    const stream = avStreamRef.current;
+    if (!stream) return;
+    stream.getAudioTracks().forEach(t => { t.enabled = avMicOff; });
+    setAvMicOff(v => !v);
+  };
+
+  const switchCamera = async (deviceId) => {
+    setAvSelectedCam(deviceId);
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: deviceId } }, audio: avSelectedMic ? { deviceId: { exact: avSelectedMic } } : true });
+      stopAvStream();
+      avStreamRef.current = newStream;
+      setAvStream(newStream);
+      if (avVideoRef.current) avVideoRef.current.srcObject = newStream;
+      startVolumeMeter(newStream);
+    } catch (e) {
+      setAvError("Could not switch camera: " + e.message);
+    }
+  };
+
+  const switchMic = async (deviceId) => {
+    setAvSelectedMic(deviceId);
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({ video: avSelectedCam ? { deviceId: { exact: avSelectedCam } } : true, audio: { deviceId: { exact: deviceId } } });
+      stopAvStream();
+      avStreamRef.current = newStream;
+      setAvStream(newStream);
+      if (avVideoRef.current) avVideoRef.current.srcObject = newStream;
+      startVolumeMeter(newStream);
+    } catch (e) {
+      setAvError("Could not switch microphone: " + e.message);
+    }
+  };
+
+  const testSpeaker = () => {
+    if (avSpeakerPlaying) return;
+    setAvSpeakerPlaying(true);
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(440, ctx.currentTime);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 1.5);
+    osc.onended = () => { setAvSpeakerPlaying(false); ctx.close(); };
+  };
+
+  /* ─── AV Modal styles ─────────────────────────────────────────── */
+  const avStyles = {
+    overlay: {
+      position: "fixed", inset: 0, zIndex: 9999,
+      background: "rgba(15,23,42,0.55)", backdropFilter: "blur(6px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+    },
+    modal: {
+      background: "var(--bg-card, #ffffff)", borderRadius: "20px",
+      boxShadow: "0 24px 60px rgba(0,0,0,0.18)", width: "min(520px, 95vw)",
+      padding: "0", overflow: "hidden",
+      border: "1px solid var(--border-color, #e2e8f0)",
+    },
+    header: {
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: "18px 22px", borderBottom: "1px solid var(--border-color, #e2e8f0)",
+      background: "var(--bg-secondary, #f8fafc)",
+    },
+    headerTitle: { fontSize: "16px", fontWeight: "700", color: "var(--text-primary, #0f172a)" },
+    closeBtn: {
+      background: "none", border: "none", cursor: "pointer",
+      fontSize: "18px", color: "var(--text-muted, #64748b)",
+      width: "32px", height: "32px", borderRadius: "8px", display: "flex",
+      alignItems: "center", justifyContent: "center",
+    },
+    errorBanner: {
+      margin: "14px 22px 0", padding: "10px 14px", borderRadius: "10px",
+      background: "rgba(239,68,68,0.1)", color: "#ef4444",
+      fontSize: "13px", border: "1px solid rgba(239,68,68,0.2)",
+    },
+    videoWrap: {
+      position: "relative", background: "#0f172a", aspectRatio: "16/9",
+      margin: "16px 22px", borderRadius: "14px", overflow: "hidden",
+      display: "flex", alignItems: "center", justifyContent: "center",
+    },
+    video: { width: "100%", height: "100%", objectFit: "cover", borderRadius: "14px", transform: "scaleX(-1)" },
+    camOff: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" },
+    videoControls: {
+      position: "absolute", bottom: "12px", left: "50%", transform: "translateX(-50%)",
+      display: "flex", gap: "10px",
+    },
+    ctrl: {
+      width: "40px", height: "40px", borderRadius: "50%", border: "none", cursor: "pointer",
+      background: "rgba(255,255,255,0.2)", backdropFilter: "blur(8px)",
+      color: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center",
+      transition: "background 0.2s",
+    },
+    ctrlOff: { background: "#ef4444" },
+    section: { padding: "0 22px 16px" },
+    label: { fontSize: "11.5px", fontWeight: "600", color: "var(--text-muted, #64748b)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "6px", display: "block" },
+    meterBar: { height: "10px", borderRadius: "99px", background: "var(--bg-hover, #f1f5f9)", overflow: "hidden", marginTop: "6px" },
+    meterFill: { height: "100%", borderRadius: "99px", transition: "width 0.08s ease, background 0.3s" },
+    devicesGrid: { padding: "0 22px 4px", display: "flex", flexDirection: "column", gap: "12px" },
+    deviceRow: { display: "flex", flexDirection: "column", gap: "4px" },
+    select: {
+      width: "100%", padding: "8px 12px", borderRadius: "10px",
+      border: "1px solid var(--border-color, #e2e8f0)", fontSize: "13px",
+      background: "var(--bg-secondary, #f8fafc)", color: "var(--text-primary, #0f172a)",
+      outline: "none", cursor: "pointer",
+    },
+    testSpkBtn: {
+      padding: "8px 18px", borderRadius: "10px", border: "1px solid var(--border-color, #e2e8f0)",
+      background: "var(--bg-secondary, #f8fafc)", color: "var(--text-primary, #0f172a)",
+      fontSize: "13px", fontWeight: "600", cursor: "pointer", fontFamily: "inherit",
+    },
+    testSpkBtnActive: { background: "rgba(26,111,244,0.1)", color: "var(--accent-blue, #1a6ff4)", borderColor: "var(--accent-blue, #1a6ff4)" },
+    footer: {
+      padding: "14px 22px 20px", display: "flex", justifyContent: "flex-end",
+      borderTop: "1px solid var(--border-color, #e2e8f0)", background: "var(--bg-secondary, #f8fafc)",
+    },
+    doneBtn: {
+      padding: "9px 28px", borderRadius: "12px", border: "none",
+      background: "var(--accent-blue, #1a6ff4)", color: "#ffffff",
+      fontSize: "14px", fontWeight: "700", cursor: "pointer", fontFamily: "inherit",
+    },
+  };
+
   return (
     <div style={styles.root}>
       {/* ── Top Navigation ── */}
-      <header style={styles.topNav}>
-        <div style={styles.topNavLeft}>
-          {/* MeetNova logo */}
-          <span style={styles.logo}>MeetNova</span>
-          <nav style={styles.navLinks}>
-            {["Products", "Solutions", "Resources", "Plans & Pricing"].map((item) => (
-              <button
-                key={item}
-                onClick={() => {
-                  if (item === "Plans & Pricing") {
-                    navigate("/pricing");
-                  }
-                }}
-                style={styles.navLink}
-              >
-                {item}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        <div style={styles.topNavRight}>
-          <button onClick={() => navigate("/schedule")} style={styles.navLinkHighlight}>Schedule</button>
-          <button onClick={handleJoinMeeting} style={styles.navLinkHighlight}>Join</button>
-          <button onClick={handleHostMeeting} style={styles.navLinkHighlightDrop}>
-            Host <ChevronDown />
-          </button>
-          <button style={styles.navLinkHighlightDrop}>
-            Web App <ChevronDown />
-          </button>
-
-          {/* Avatar */}
-          <div style={{ position: "relative" }}>
-            <button
-              onClick={() => setShowProfileMenu((p) => !p)}
-              style={styles.avatar}
-              title={user?.name}
-            >
-              {initials}
-            </button>
-            {showProfileMenu && (
-              <UserProfileMenu
-                user={user}
-                onLogout={handleLogout}
-                onClose={() => setShowProfileMenu(false)}
-              />
-            )}
-          </div>
-        </div>
-      </header>
+      <TopNav />
 
       <div style={styles.bodyRow}>
         {/* ── Left Sidebar ── */}
-        <aside style={styles.sidebar}>
-          <div style={styles.sidebarInner}>
-            {/* ── Home ── */}
-            <button
-              onClick={() => {
-                setActiveSubPage(null);
-                navigate("/");
-              }}
-              style={{
-                ...styles.sidebarBtn,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginBottom: 8,
-                background: activeSubPage === null ? "var(--sidebar-active-bg, #eff6ff)" : "none",
-                color: activeSubPage === null ? "var(--sidebar-active-color, #1a6ff4)" : "var(--sidebar-text, #1e293b)",
-                fontWeight: activeSubPage === null ? "600" : "500",
-              }}
-            >
-              <HomeIcon />
-              <span>Home</span>
-            </button>
-            <div style={styles.sidebarDivider} />
-            <p style={{ ...styles.sidebarGroupLabel, marginTop: 12 }}>My Products</p>
-            <ul style={styles.sidebarList}>
-              {sidebarItems.map((item) => (
-                <li key={item.label} style={styles.sidebarItem}>
-                  <button
-                    onClick={() => {
-                      if (item.label === "Recordings") {
-                        navigate("/recordings");
-                      } else if (item.label === "Meetings") {
-                        navigate("/meetings");
-                      } else if (item.label === "Calendar") {
-                        navigate("/calendar");
-                      } else if (item.label === "Scheduler") {
-                        navigate("/schedule");
-                      }
-                    }}
-                    style={{
-                      ...styles.sidebarBtn,
-                      background: "none",
-                      color: "var(--sidebar-text, #1e293b)",
-                      fontWeight: "500",
-                    }}
-                  >
-                    <span>{item.label}</span>
-                    <span style={styles.sidebarIcons}>
-                      {item.badge && (
-                        <span style={styles.newBadge}>{item.badge}</span>
-                      )}
-                      {item.external && (
-                        <span style={styles.externalIcon}><ExternalIcon /></span>
-                      )}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-
-            {/* Divider */}
-            <div style={styles.sidebarDivider} />
-
-            {/* My Account */}
-            <button
-              style={styles.sidebarCollapsible}
-              onClick={() => setMyAccountOpen((p) => !p)}
-            >
-              <span style={{ transition: "transform 0.2s", display: "inline-flex", transform: myAccountOpen ? "rotate(90deg)" : "rotate(0deg)" }}>
-                <ChevronRight />
-              </span>
-              <span>My Account</span>
-            </button>
-            {myAccountOpen && (
-              <ul style={styles.subMenu}>
-                <li>
-                  <button
-                    style={styles.subMenuItem}
-                    onClick={() => navigate("/profile")}
-                  >
-                    Profile
-                  </button>
-                </li>
-                <li>
-                  <button
-                    style={{
-                      ...styles.subMenuItem,
-                      ...(activeSubPage === "settings" ? styles.subMenuItemActive : {}),
-                    }}
-                    onClick={() => setActiveSubPage("settings")}
-                  >
-                    Settings
-                  </button>
-                </li>
-              </ul>
-            )}
-
-            {/* Admin */}
-            {user?.role === "admin" && (
-              <button
-                style={styles.sidebarCollapsible}
-                onClick={() => navigate("/admin")}
-              >
-                <ChevronRight />
-                <span>Admin</span>
-              </button>
-            )}
-          </div>
-        </aside>
+        <Sidebar activeTab="Home" activeSubPage={activeSubPage} onSubPageChange={setActiveSubPage} />
 
         {/* ── Main Content ── */}
         <main style={styles.main}>
@@ -680,7 +1009,7 @@ export default function Home() {
                 <span style={styles.noMeetingsText}>No Upcoming Meetings</span>
               </div>
             )}
-            <button style={styles.testAvBtn}>Test Audio and Video</button>
+            <button style={styles.testAvBtn} onClick={openAvTest}>Test Audio and Video</button>
           </div>
         </aside>
       </div>
@@ -689,6 +1018,97 @@ export default function Home() {
       <button style={styles.chatFab} title="Support chat">
         <ChatIcon />
       </button>
+
+      {/* ── AV Test Modal ── */}
+      {avOpen && (
+        <div style={avStyles.overlay} onClick={(e) => { if (e.target === e.currentTarget) closeAvTest(); }}>
+          <div style={avStyles.modal}>
+            {/* Header */}
+            <div style={avStyles.header}>
+              <span style={avStyles.headerTitle}>🎙️ Test Audio &amp; Video</span>
+              <button style={avStyles.closeBtn} onClick={closeAvTest}>✕</button>
+            </div>
+
+            {avError && <div style={avStyles.errorBanner}>{avError}</div>}
+
+            {/* Camera preview */}
+            <div style={avStyles.videoWrap}>
+              {avCamOff ? (
+                <div style={avStyles.camOff}>
+                  <svg viewBox="0 0 24 24" fill="white" width="48" height="48">
+                    <path d="M21 6.5l-4-4-14 14 4 4 14-14zm-3.5 1.5L19 9.5V17h-2v-5l-1 1v4H4V9h5l1-1H4.5L3 8v10a1 1 0 001 1h13a1 1 0 001-1V9l-1.5-1z"/>
+                    <path d="M0 0h24v24H0z" fill="none"/>
+                  </svg>
+                  <p style={{color:'#94a3b8',margin:'8px 0 0'}}>Camera is off</p>
+                </div>
+              ) : (
+                <video ref={avVideoRef} autoPlay muted playsInline style={avStyles.video} />
+              )}
+              <div style={avStyles.videoControls}>
+                <button style={{...avStyles.ctrl, ...(avCamOff?avStyles.ctrlOff:{})}} onClick={toggleAvCam} title={avCamOff?'Turn camera on':'Turn camera off'}>
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                    {avCamOff
+                      ? <path d="M21 6.5l-4-4-14 14 4 4 14-14zm-2 7v-3.5l-4 4V17H4V9h5l-1-1H3a1 1 0 00-1 1v10a1 1 0 001 1h13a1 1 0 001-1V13.5z"/>
+                      : <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>}
+                  </svg>
+                </button>
+                <button style={{...avStyles.ctrl, ...(avMicOff?avStyles.ctrlOff:{})}} onClick={toggleAvMic} title={avMicOff?'Unmute mic':'Mute mic'}>
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                    {avMicOff
+                      ? <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>
+                      : <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>}
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Mic volume meter */}
+            <div style={avStyles.section}>
+              <label style={avStyles.label}>Microphone level</label>
+              <div style={avStyles.meterBar}>
+                <div style={{...avStyles.meterFill, width: `${avVolume}%`, background: avVolume > 75 ? '#ef4444' : avVolume > 40 ? '#f59e0b' : '#22c55e'}} />
+              </div>
+            </div>
+
+            {/* Device selectors */}
+            <div style={avStyles.devicesGrid}>
+              <div style={avStyles.deviceRow}>
+                <label style={avStyles.label}>Camera</label>
+                <select style={avStyles.select} value={avSelectedCam} onChange={e => switchCamera(e.target.value)}>
+                  {avCameras.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Camera ${d.deviceId.slice(0,8)}`}</option>)}
+                </select>
+              </div>
+              <div style={avStyles.deviceRow}>
+                <label style={avStyles.label}>Microphone</label>
+                <select style={avStyles.select} value={avSelectedMic} onChange={e => switchMic(e.target.value)}>
+                  {avMics.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${d.deviceId.slice(0,8)}`}</option>)}
+                </select>
+              </div>
+              {avSpeakers.length > 0 && (
+                <div style={avStyles.deviceRow}>
+                  <label style={avStyles.label}>Speaker</label>
+                  <select style={avStyles.select} value={avSelectedSpk} onChange={e => setAvSelectedSpk(e.target.value)}>
+                    {avSpeakers.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Speaker ${d.deviceId.slice(0,8)}`}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Speaker test */}
+            <div style={avStyles.section}>
+              <button style={{...avStyles.testSpkBtn, ...(avSpeakerPlaying?avStyles.testSpkBtnActive:{})}} onClick={testSpeaker}>
+                {avSpeakerPlaying ? '🔊 Playing...' : '🔈 Test Speaker'}
+              </button>
+            </div>
+
+            {/* Footer */}
+            <div style={avStyles.footer}>
+              <button style={avStyles.doneBtn} onClick={closeAvTest}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <JoinMeetingModal open={joinOpen} onClose={() => setJoinOpen(false)} onJoin={handleJoinConfirm} />
     </div>
   );
 }
@@ -1397,5 +1817,347 @@ const styles = {
     fontSize: "13.5px",
     color: "var(--text-primary, #0f172a)",
     fontWeight: "600",
+  },
+  welcomeCard: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    background: "linear-gradient(135deg, var(--bg-card) 0%, var(--bg-hover) 100%)",
+    border: "1px solid var(--border-color)",
+    borderRadius: "16px",
+    padding: "32px",
+    marginBottom: "28px",
+    boxShadow: "var(--card-shadow)",
+  },
+  welcomeLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "24px",
+  },
+  largeAvatar: {
+    width: "72px",
+    height: "72px",
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, var(--accent-blue) 0%, #3b82f6 100%)",
+    color: "#ffffff",
+    fontSize: "28px",
+    fontWeight: "800",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "3px solid var(--border-color)",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+  },
+  welcomeTextGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+  },
+  welcomeTitle: {
+    margin: 0,
+    fontSize: "24px",
+    fontWeight: "800",
+    color: "var(--text-primary)",
+    letterSpacing: "-0.5px",
+  },
+  welcomeSubtitle: {
+    margin: 0,
+    fontSize: "14px",
+    color: "var(--text-secondary)",
+    lineHeight: "1.5",
+    maxWidth: "580px",
+  },
+  planBadge: {
+    display: "inline-flex",
+    alignSelf: "flex-start",
+    marginTop: "4px",
+    background: "var(--bg-input)",
+    border: "1px solid var(--border-color)",
+    borderRadius: "20px",
+    padding: "4px 12px",
+  },
+  planBadgeText: {
+    fontSize: "12px",
+    fontWeight: "700",
+    color: "var(--text-muted)",
+  },
+  welcomeRight: {
+    flexShrink: 0,
+  },
+  welcomePrimaryBtn: {
+    padding: "10px 20px",
+    borderRadius: "24px",
+    border: "none",
+    background: "var(--accent-blue)",
+    color: "#ffffff",
+    fontWeight: "700",
+    fontSize: "14px",
+    cursor: "pointer",
+    boxShadow: "0 4px 14px rgba(26,111,244,0.3)",
+    transition: "transform 0.15s, opacity 0.15s",
+    fontFamily: "inherit",
+  },
+  statsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gap: "20px",
+    marginBottom: "28px",
+  },
+  statCard: {
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+    background: "var(--bg-card)",
+    border: "1px solid var(--border-color)",
+    borderRadius: "14px",
+    padding: "20px",
+    boxShadow: "var(--card-shadow)",
+    transition: "transform 0.15s, box-shadow 0.15s",
+  },
+  statIconContainer: {
+    width: "44px",
+    height: "44px",
+    borderRadius: "10px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  statInfo: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "2px",
+  },
+  statValue: {
+    fontSize: "22px",
+    fontWeight: "800",
+    color: "var(--text-primary)",
+    lineHeight: "1.1",
+  },
+  statLabel: {
+    fontSize: "12px",
+    fontWeight: "600",
+    color: "var(--text-muted)",
+  },
+  dashboardGrid: {
+    display: "grid",
+    gridTemplateColumns: "1.4fr 1fr",
+    gap: "24px",
+  },
+  gridLeftCol: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "24px",
+  },
+  gridRightCol: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "24px",
+  },
+  widgetCard: {
+    background: "var(--bg-card)",
+    border: "1px solid var(--border-color)",
+    borderRadius: "16px",
+    padding: "24px",
+    boxShadow: "var(--card-shadow)",
+  },
+  widgetHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: "18px",
+    borderBottom: "1px solid var(--border-color)",
+    paddingBottom: "12px",
+  },
+  widgetTitle: {
+    margin: 0,
+    fontSize: "16px",
+    fontWeight: "700",
+    color: "var(--text-primary)",
+  },
+  widgetActionLink: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    fontSize: "13px",
+    fontWeight: "600",
+    color: "var(--accent-blue)",
+    fontFamily: "inherit",
+    padding: 0,
+  },
+  widgetContent: {
+    minHeight: "100px",
+  },
+  emptyWidgetState: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    textAlign: "center",
+    padding: "32px 16px",
+  },
+  emptyWidgetText: {
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "var(--text-muted)",
+    margin: "0 0 8px",
+  },
+  emptyWidgetSubtext: {
+    fontSize: "12px",
+    color: "var(--text-muted)",
+    opacity: 0.8,
+  },
+  widgetPrimaryBtn: {
+    marginTop: "8px",
+    padding: "8px 16px",
+    borderRadius: "18px",
+    border: "none",
+    background: "var(--accent-blue)",
+    color: "#ffffff",
+    fontWeight: "600",
+    fontSize: "12px",
+    cursor: "pointer",
+    fontFamily: "inherit",
+  },
+  taskList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+  },
+  taskRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    background: "var(--bg-primary)",
+    border: "1px solid var(--border-color)",
+    borderRadius: "10px",
+    padding: "12px 16px",
+    transition: "opacity 0.2s",
+  },
+  taskCheckbox: {
+    width: "20px",
+    height: "20px",
+    borderRadius: "6px",
+    border: "2px solid",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    outline: "none",
+    transition: "background-color 0.2s, border-color 0.2s",
+  },
+  taskDetails: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "4px",
+    flex: 1,
+  },
+  taskNameText: {
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "var(--text-primary)",
+  },
+  taskMetaRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+  },
+  priorityTag: {
+    fontSize: "10px",
+    fontWeight: "700",
+    borderRadius: "4px",
+    padding: "1px 6px",
+  },
+  taskDueDateText: {
+    fontSize: "11px",
+    color: "var(--text-muted)",
+  },
+  recordingsList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+  },
+  recordingRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    padding: "10px 12px",
+    borderRadius: "10px",
+    background: "var(--bg-primary)",
+    border: "1px solid var(--border-color)",
+  },
+  recordingIconWrapper: {
+    width: "36px",
+    height: "36px",
+    borderRadius: "8px",
+    background: "rgba(16, 185, 129, 0.1)",
+    color: "#10b981",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recordingDetails: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "2px",
+    flex: 1,
+  },
+  recordingNameText: {
+    fontSize: "13.5px",
+    fontWeight: "600",
+    color: "var(--text-primary)",
+  },
+  recordingMetaText: {
+    fontSize: "11px",
+    color: "var(--text-muted)",
+  },
+  recordingPlayBtn: {
+    padding: "5px 12px",
+    borderRadius: "14px",
+    background: "var(--bg-card)",
+    color: "var(--accent-blue)",
+    fontWeight: "700",
+    fontSize: "11.5px",
+    cursor: "pointer",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+    border: "1px solid var(--border-color)",
+    fontFamily: "inherit",
+  },
+  timelineList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "20px",
+    position: "relative",
+    paddingLeft: "8px",
+  },
+  timelineRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "16px",
+    position: "relative",
+  },
+  timelineDot: {
+    width: "10px",
+    height: "10px",
+    borderRadius: "50%",
+    background: "#10b981",
+    marginTop: "5px",
+    zIndex: 2,
+    flexShrink: 0,
+  },
+  timelineContent: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "2px",
+  },
+  timelineText: {
+    margin: 0,
+    fontSize: "13.5px",
+    color: "var(--text-primary)",
+    lineHeight: "1.4",
+  },
+  timelineTime: {
+    fontSize: "11px",
+    color: "var(--text-muted)",
   },
 };

@@ -9,6 +9,8 @@ const meetingSockets = new Map();
 const waitingQueues = new Map();
 /** Current host socket id per meeting (runtime; supports transfer). */
 const hostSocketByRoom = new Map();
+/** Active whiteboard state per meeting room key (runtime: lines, notes, images) */
+const meetingWhiteboards = new Map();
 
 function roomKey(meetingCode) {
   return meetingCode.toUpperCase();
@@ -94,6 +96,7 @@ function admitWaitingUser(io, meetingCodeUpper, targetId) {
   target.emit("admitted-to-meeting", {
     existingUsers,
     hostSocketId,
+    whiteboard: meetingWhiteboards.get(rKey) || { lines: [], notes: [], images: [] }
   });
   return true;
 }
@@ -208,6 +211,7 @@ export function setupSocket(io) {
           existingUsers,
           hostSocketId,
           isHost: isRuntimeHost(socket, rKey),
+          whiteboard: meetingWhiteboards.get(rKey) || { lines: [], notes: [], images: [] }
         });
       } catch (err) {
         console.error(err);
@@ -373,6 +377,43 @@ export function setupSocket(io) {
       socket.emit("private-message", payload);
     });
 
+    socket.on("whiteboard-draw", (data) => {
+      if (!socket.meetingCode) return;
+      const rKey = roomKey(socket.meetingCode);
+      if (!meetingWhiteboards.has(rKey)) {
+        meetingWhiteboards.set(rKey, { lines: [], notes: [], images: [] });
+      }
+      meetingWhiteboards.get(rKey).lines.push(data);
+      socket.to(rKey).emit("whiteboard-draw", data);
+    });
+
+    socket.on("whiteboard-notes", (notes) => {
+      if (!socket.meetingCode) return;
+      const rKey = roomKey(socket.meetingCode);
+      if (!meetingWhiteboards.has(rKey)) {
+        meetingWhiteboards.set(rKey, { lines: [], notes: [], images: [] });
+      }
+      meetingWhiteboards.get(rKey).notes = notes;
+      socket.to(rKey).emit("whiteboard-notes", notes);
+    });
+
+    socket.on("whiteboard-images", (images) => {
+      if (!socket.meetingCode) return;
+      const rKey = roomKey(socket.meetingCode);
+      if (!meetingWhiteboards.has(rKey)) {
+        meetingWhiteboards.set(rKey, { lines: [], notes: [], images: [] });
+      }
+      meetingWhiteboards.get(rKey).images = images;
+      socket.to(rKey).emit("whiteboard-images", images);
+    });
+
+    socket.on("whiteboard-clear", () => {
+      if (!socket.meetingCode) return;
+      const rKey = roomKey(socket.meetingCode);
+      meetingWhiteboards.set(rKey, { lines: [], notes: [], images: [] });
+      socket.to(rKey).emit("whiteboard-clear");
+    });
+
     socket.on("disconnect", () => {
       const waitKey = socket.waitingForKey;
       if (waitKey) {
@@ -411,6 +452,7 @@ export function setupSocket(io) {
           meetingSockets.delete(rKey);
           hostSocketByRoom.delete(rKey);
           waitingQueues.delete(rKey);
+          meetingWhiteboards.delete(rKey);
 
           logActivity({
             userId: socket.userId || null,

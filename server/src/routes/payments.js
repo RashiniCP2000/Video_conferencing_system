@@ -19,7 +19,7 @@ const PRICE_IDS = {
 
 router.post("/create-checkout-session", authRequired, async (req, res) => {
   try {
-    const { plan } = req.body;
+    const { plan, interval = "monthly" } = req.body;
     const user = await User.findById(req.userId);
 
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -27,6 +27,13 @@ router.post("/create-checkout-session", authRequired, async (req, res) => {
     // Check verification if student plan
     if (plan === "student" && user.verificationStatus !== "verified") {
       return res.status(403).json({ message: "Student verification required for this plan." });
+    }
+
+    // Fallback to Mock Payment Gateway if Stripe key is placeholder or missing
+    if (stripeKey === "sk_test_placeholder" || !process.env.STRIPE_SECRET_KEY) {
+      const mockSessionId = "mock_" + Math.random().toString(36).substring(2, 11);
+      const redirectUrl = `/checkout/mock?session_id=${mockSessionId}&plan=${plan}&interval=${interval}`;
+      return res.json({ id: mockSessionId, url: redirectUrl });
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -44,12 +51,43 @@ router.post("/create-checkout-session", authRequired, async (req, res) => {
       metadata: {
         userId: user._id.toString(),
         plan: plan,
+        interval: interval,
       },
     });
 
     res.json({ id: session.id, url: session.url });
   } catch (error) {
     res.status(500).json({ message: "Stripe session creation failed", error: error.message });
+  }
+});
+
+router.post("/mock-complete-session", authRequired, async (req, res) => {
+  try {
+    const { sessionId, plan, interval = "monthly" } = req.body;
+    if (!sessionId || !plan) {
+      return res.status(400).json({ message: "Missing sessionId or plan" });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.plan = plan;
+    user.subscriptionStatus = "active";
+    user.stripeCustomerId = "mock_customer_" + user._id;
+    await user.save();
+
+    const durationDays = interval === "yearly" ? 365 : 30;
+    await Subscription.create({
+      userId: user._id,
+      plan: plan,
+      stripeSubscriptionId: "mock_sub_" + Math.random().toString(36).substring(2, 11),
+      status: "active",
+      currentPeriodEnd: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000),
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: "Mock payment completion failed", error: error.message });
   }
 });
 
@@ -91,6 +129,35 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req, r
   }
 
   res.json({ received: true });
+});
+
+router.get("/billing-history", authRequired, async (req, res) => {
+  try {
+    const history = await Subscription.find({ userId: req.userId }).sort({ createdAt: -1 });
+    res.json({ history });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch billing history", error: error.message });
+  }
+});
+
+router.post("/cancel-subscription", authRequired, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.plan = "free";
+    user.subscriptionStatus = "inactive";
+    await user.save();
+
+    await Subscription.updateMany(
+      { userId: req.userId, status: "active" },
+      { status: "canceled" }
+    );
+
+    res.json({ success: true, plan: "free", subscriptionStatus: "inactive" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to cancel subscription", error: error.message });
+  }
 });
 
 export default router;

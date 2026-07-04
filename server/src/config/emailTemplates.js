@@ -216,3 +216,25 @@ export function paymentSuccessEmail(userName, plan, amount) {
     </p>
   `);
 }
+
+export function otpEmail(otp, userName = 'User') {
+  return baseTemplate(`
+    <h2 style="margin-top: 0; color: #111827; font-size: 20px; font-weight: 600;">Hello ${userName},</h2>
+    <p style="font-size: 15px; line-height: 1.6; color: #4b5563; margin-bottom: 24px;">
+      We received a request to reset your MeetNova account password. Use the verification code below to continue.
+      This code is valid for <strong>10 minutes</strong>.
+    </p>
+    <div style="text-align: center; margin: 32px 0;">
+      <div style="display: inline-block; background: linear-gradient(135deg, #5b21b6, #7c3aed); border-radius: 16px; padding: 24px 48px;">
+        <p style="color: rgba(255,255,255,0.75); font-size: 12px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; margin: 0 0 10px;">Your Verification Code</p>
+        <p style="color: #ffffff; font-size: 42px; font-weight: 900; letter-spacing: 16px; margin: 0; font-family: 'Courier New', monospace;">${otp}</p>
+      </div>
+    </div>
+    <p style="font-size: 14px; line-height: 1.6; color: #6b7280; margin-bottom: 8px;">
+      Enter this code on the verification page to proceed with resetting your password.
+    </p>
+    <p style="font-size: 13px; line-height: 1.6; color: #9ca3af; margin-bottom: 0;">
+      If you did not request a password reset, you can safely ignore this email. Your account remains secure.
+    </p>
+  `);
+}

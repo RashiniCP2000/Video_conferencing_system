@@ -28,6 +28,8 @@ const userSchema = new mongoose.Schema(
     stripeCustomerId: String,
     resetPasswordToken: String,
     resetPasswordExpires: Date,
+    passwordOtp: String,
+    passwordOtpExpires: Date,
     googleAccessToken: String,
     googleRefreshToken: String,
     googleCalendarConnected: { type: Boolean, default: false },

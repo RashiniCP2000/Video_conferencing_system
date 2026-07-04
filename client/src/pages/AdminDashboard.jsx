@@ -398,7 +398,7 @@ export default function AdminDashboard() {
           <h2 className="text-xl font-bold text-white mb-2">Access Denied</h2>
           <p className="text-slate-400 text-sm mb-6">{error}</p>
           <button
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/dashboard")}
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-xl transition-all shadow-lg shadow-indigo-500/20"
           >
             Go Back Home
@@ -537,7 +537,7 @@ export default function AdminDashboard() {
             </div>
           </div>
           <button
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/dashboard")}
             className="w-full mb-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2 rounded-xl text-xs transition-all border border-slate-700"
           >
             Client Panel

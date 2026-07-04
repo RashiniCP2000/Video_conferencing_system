@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { io } from "socket.io-client";
 import api from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import WhiteboardCanvas from "../components/WhiteboardCanvas.jsx";
 
 const ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
 const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -133,6 +134,12 @@ export default function MeetingRoom() {
   const mediaRecorderRef = useRef(null);
   const recordChunksRef = useRef([]);
   const compositeStopRef = useRef(null);
+
+  // ── Whiteboard state ──
+  const [wbOpen, setWbOpen] = useState(false);
+  const [wbLines, setWbLines] = useState([]);
+  const [wbNotes, setWbNotes] = useState([]);
+  const [wbImages, setWbImages] = useState([]);
 
   const socketRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -392,6 +399,25 @@ export default function MeetingRoom() {
         setMeetingMeta((prev) => (prev ? { ...prev, waitingRoomEnabled: w } : prev));
         if (!w) setWaitingPeers([]);
       });
+
+      // ── Whiteboard collaboration events ──
+      socket.on("whiteboard-draw", (data) => {
+        setWbLines((prev) => [...prev, data]);
+      });
+
+      socket.on("whiteboard-notes", (notes) => {
+        setWbNotes(notes);
+      });
+
+      socket.on("whiteboard-images", (images) => {
+        setWbImages(images);
+      });
+
+      socket.on("whiteboard-clear", () => {
+        setWbLines([]);
+        setWbNotes([]);
+        setWbImages([]);
+      });
     },
     [createPeerConnection, enterCallPeers, isAuthenticated, navigate, removePeer, teardownCall]
   );
@@ -462,6 +488,13 @@ export default function MeetingRoom() {
 
       const existing = response.existingUsers || [];
       enterCallPeers(socket, name, existing);
+
+      // Seed whiteboard state from server if any
+      if (response.whiteboard) {
+        setWbLines(response.whiteboard.lines || []);
+        setWbNotes(response.whiteboard.notes || []);
+        setWbImages(response.whiteboard.images || []);
+      }
     });
   };
 
@@ -812,50 +845,84 @@ export default function MeetingRoom() {
       </header>
 
       {!inCall && !waitingForAdmission ? (
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-md rounded-2xl border border-surface-border bg-surface-elevated p-8 shadow-sm">
-            <h2 className="text-xl font-semibold text-slate-900 mb-1">Ready to join?</h2>
-            <p className="text-sm text-slate-600 mb-6">
-              Host: {meetingMeta.host?.name || "Unknown"}
-            </p>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Display name</label>
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full rounded-lg bg-surface border border-surface-border px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-accent text-slate-900"
-            />
-            {joinError && (
-              <div className="mb-4 rounded-lg bg-red-500/15 text-red-300 text-sm px-3 py-2">
-                {joinError}
+        <div style={lobbyStyles.overlay}>
+          <div style={lobbyStyles.modal}>
+            {/* Header */}
+            <div style={lobbyStyles.header}>
+              <div style={lobbyStyles.iconWrap}>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                  <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+                </svg>
               </div>
-            )}
-            {meetingMeta.isHost && (
-              <div className="mb-4 rounded-lg border border-surface-border bg-surface px-3 py-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-medium text-slate-700">Waiting room (meeting setting)</p>
-                  <p className="text-xs text-slate-500">Only you can change this while signed in as host</p>
+              <div className="text-left">
+                <h2 style={lobbyStyles.title}>Ready to join?</h2>
+                <p style={lobbyStyles.subtitle}>
+                  Meeting Host: <strong style={{ color: "var(--accent-blue, #1a6ff4)" }}>{meetingMeta.host?.name || "Unknown"}</strong>
+                </p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div style={lobbyStyles.body}>
+              <label style={lobbyStyles.label} htmlFor="display-name-input">Your Display Name</label>
+              <div style={lobbyStyles.inputWrap}>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18" style={lobbyStyles.inputIcon}>
+                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                </svg>
+                <input
+                  id="display-name-input"
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Enter your name"
+                  maxLength={80}
+                  style={lobbyStyles.input}
+                  autoComplete="off"
+                />
+              </div>
+
+              {joinError && (
+                <div style={lobbyStyles.errorBox}>
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" style={{ flexShrink: 0 }}>
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                  </svg>
+                  <span>{joinError}</span>
                 </div>
-                <button
-                  type="button"
-                  disabled={waitingRoomSaving}
-                  onClick={() => updateWaitingRoomSetting(!meetingMeta.waitingRoomEnabled)}
-                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
-                    meetingMeta.waitingRoomEnabled
-                      ? "bg-amber-600/35 text-amber-100 border border-amber-500/40"
-                      : "bg-surface-elevated text-slate-300 border border-surface-border"
-                  }`}
-                >
-                  {waitingRoomSaving ? "…" : meetingMeta.waitingRoomEnabled ? "On" : "Off"}
-                </button>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={handleJoinCall}
-              className="w-full rounded-xl bg-accent hover:bg-blue-600 text-white font-medium py-3 text-sm"
-            >
-              Join with microphone & camera
-            </button>
+              )}
+
+              {meetingMeta.isHost && (
+                <div style={lobbyStyles.settingCard}>
+                  <div style={lobbyStyles.settingTextWrap}>
+                    <p style={lobbyStyles.settingTitle}>Waiting room (meeting setting)</p>
+                    <p style={lobbyStyles.settingDesc}>Only you can change this while signed in as host</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={waitingRoomSaving}
+                    onClick={() => updateWaitingRoomSetting(!meetingMeta.waitingRoomEnabled)}
+                    style={{
+                      ...lobbyStyles.toggleBtn,
+                      ...(meetingMeta.waitingRoomEnabled ? lobbyStyles.toggleBtnActive : {}),
+                    }}
+                  >
+                    {waitingRoomSaving ? "…" : meetingMeta.waitingRoomEnabled ? "Enabled" : "Disabled"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={lobbyStyles.footer}>
+              <button style={lobbyStyles.cancelBtn} onClick={leaveMeeting}>
+                Cancel
+              </button>
+              <button style={lobbyStyles.joinBtn} onClick={handleJoinCall}>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                  <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+                </svg>
+                Join Call
+              </button>
+            </div>
           </div>
         </div>
       ) : waitingForAdmission ? (
@@ -1018,6 +1085,18 @@ export default function MeetingRoom() {
               </button>
               <button
                 type="button"
+                onClick={() => setWbOpen((o) => !o)}
+                className={`rounded-full px-4 py-2 text-sm font-medium border transition-colors ${
+                  wbOpen
+                    ? "bg-violet-600 border-violet-500 text-white shadow-sm"
+                    : "bg-white border-surface-border text-slate-700 hover:bg-slate-50"
+                }`}
+                title="Toggle collaborative whiteboard"
+              >
+                🎨 Whiteboard
+              </button>
+              <button
+                type="button"
                 onClick={leaveMeeting}
                 className="rounded-full px-5 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 text-white"
               >
@@ -1025,6 +1104,91 @@ export default function MeetingRoom() {
               </button>
             </footer>
           </div>
+
+          {/* ── Whiteboard Overlay Panel ── */}
+          {wbOpen && (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 300,
+                background: "rgba(0,0,0,0.7)",
+                backdropFilter: "blur(4px)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 16
+              }}
+            >
+              <div
+                style={{
+                  background: "var(--bg-primary, #f8fafc)",
+                  borderRadius: 16,
+                  width: "95vw",
+                  height: "90vh",
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
+                  boxShadow: "0 24px 80px rgba(0,0,0,0.5)"
+                }}
+              >
+                {/* Whiteboard Modal Header */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "12px 20px",
+                    background: "var(--bg-card, #fff)",
+                    borderBottom: "1px solid var(--border-color, #e2e8f0)"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 22 }}>🎨</span>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "var(--text-primary, #0f172a)" }}>
+                        Collaborative Whiteboard
+                      </h2>
+                      <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted, #64748b)" }}>
+                        All participants can draw, add notes and insert images in real-time
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setWbOpen(false)}
+                    style={{
+                      background: "none",
+                      border: "1px solid var(--border-color, #e2e8f0)",
+                      borderRadius: 8,
+                      padding: "6px 14px",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      color: "var(--text-secondary, #1e293b)"
+                    }}
+                  >
+                    ✕ Close
+                  </button>
+                </div>
+
+                {/* WhiteboardCanvas (fills the rest of the modal) */}
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                  <WhiteboardCanvas
+                    lines={wbLines}
+                    setLines={setWbLines}
+                    notes={wbNotes}
+                    setNotes={setWbNotes}
+                    images={wbImages}
+                    setImages={setWbImages}
+                    onBroadcastDraw={(data) => socketRef.current?.emit("whiteboard-draw", data)}
+                    onBroadcastNotes={(notes) => socketRef.current?.emit("whiteboard-notes", notes)}
+                    onBroadcastImages={(images) => socketRef.current?.emit("whiteboard-images", images)}
+                    onBroadcastClear={() => socketRef.current?.emit("whiteboard-clear")}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <aside
             className={`${
@@ -1159,3 +1323,177 @@ export default function MeetingRoom() {
     </div>
   );
 }
+
+const lobbyStyles = {
+  overlay: {
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "24px",
+    background: "var(--bg-primary, #f8fafc)",
+  },
+  modal: {
+    background: "var(--bg-card, #ffffff)",
+    borderRadius: "20px",
+    boxShadow: "0 20px 50px rgba(0,0,0,0.08)",
+    width: "min(460px, 95vw)",
+    overflow: "hidden",
+    border: "1px solid var(--border-color, #e2e8f0)",
+  },
+  header: {
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+    padding: "24px 24px 20px",
+    borderBottom: "1px solid var(--border-color, #e2e8f0)",
+    background: "var(--bg-secondary, #f8fafc)",
+  },
+  iconWrap: {
+    width: "44px",
+    height: "44px",
+    borderRadius: "12px",
+    flexShrink: 0,
+    background: "linear-gradient(135deg, #1a6ff4, #06b6d4)",
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 4px 12px rgba(26,111,244,0.3)",
+  },
+  title: {
+    margin: 0,
+    fontSize: "18px",
+    fontWeight: "700",
+    color: "var(--text-primary, #0f172a)",
+    lineHeight: 1.2,
+  },
+  subtitle: {
+    margin: "4px 0 0",
+    fontSize: "13px",
+    color: "var(--text-muted, #64748b)",
+  },
+  body: {
+    padding: "24px 24px 20px",
+  },
+  label: {
+    display: "block",
+    fontSize: "12.5px",
+    fontWeight: "600",
+    color: "var(--text-muted, #64748b)",
+    textTransform: "uppercase",
+    letterSpacing: "0.07em",
+    marginBottom: "8px",
+  },
+  inputWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    border: "1.5px solid var(--border-color, #e2e8f0)",
+    borderRadius: "12px",
+    padding: "0 14px",
+    background: "var(--bg-secondary, #f8fafc)",
+    transition: "border-color 0.2s, box-shadow 0.2s",
+  },
+  inputIcon: {
+    color: "var(--text-muted, #94a3b8)",
+    flexShrink: 0,
+  },
+  input: {
+    flex: 1,
+    padding: "13px 0",
+    border: "none",
+    outline: "none",
+    background: "transparent",
+    fontSize: "15px",
+    fontWeight: "600",
+    color: "var(--text-primary, #0f172a)",
+  },
+  errorBox: {
+    marginTop: "12px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "10px 14px",
+    borderRadius: "10px",
+    background: "#ef444415",
+    border: "1px solid #ef444430",
+    color: "#ef4444",
+    fontSize: "13px",
+    fontWeight: "500",
+  },
+  settingCard: {
+    marginTop: "16px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+    padding: "14px",
+    borderRadius: "12px",
+    border: "1px solid var(--border-color, #e2e8f0)",
+    background: "var(--bg-secondary, #f8fafc)",
+  },
+  settingTextWrap: {
+    flex: 1,
+    textAlign: "left",
+  },
+  settingTitle: {
+    margin: 0,
+    fontSize: "13px",
+    fontWeight: "600",
+    color: "var(--text-primary, #0f172a)",
+  },
+  settingDesc: {
+    margin: "2px 0 0",
+    fontSize: "11px",
+    color: "var(--text-muted, #64748b)",
+  },
+  toggleBtn: {
+    padding: "6px 14px",
+    borderRadius: "8px",
+    border: "1px solid var(--border-color, #e2e8f0)",
+    background: "var(--bg-card, #ffffff)",
+    color: "var(--text-muted, #64748b)",
+    fontSize: "12px",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
+  toggleBtnActive: {
+    background: "rgba(245, 158, 11, 0.15)",
+    border: "1px solid rgba(245, 158, 11, 0.4)",
+    color: "#d97706",
+  },
+  footer: {
+    display: "flex",
+    gap: "12px",
+    justifyContent: "flex-end",
+    padding: "16px 24px 24px",
+    borderTop: "1px solid var(--border-color, #e2e8f0)",
+    background: "var(--bg-secondary, #f8fafc)",
+  },
+  cancelBtn: {
+    padding: "10px 20px",
+    borderRadius: "10px",
+    border: "1.5px solid var(--border-color, #e2e8f0)",
+    background: "var(--bg-card, #ffffff)",
+    color: "var(--text-muted, #64748b)",
+    fontSize: "14px",
+    fontWeight: "600",
+    cursor: "pointer",
+  },
+  joinBtn: {
+    padding: "10px 24px",
+    borderRadius: "10px",
+    border: "none",
+    background: "linear-gradient(135deg, #1a6ff4, #06b6d4)",
+    color: "#ffffff",
+    fontSize: "14px",
+    fontWeight: "700",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    boxShadow: "0 4px 14px rgba(26,111,244,0.35)",
+  },
+};

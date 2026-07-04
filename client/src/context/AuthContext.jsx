@@ -34,6 +34,7 @@ export function AuthProvider({ children }) {
     setToken(newToken);
     const { data } = await api.get("/auth/me");
     setUser(data.user);
+    return data.user;
   }, []);
 
   const value = useMemo(

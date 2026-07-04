@@ -3,6 +3,9 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import api from "../api/client.js";
 import UserProfileMenu from "../components/UserProfileMenu.jsx";
+import Sidebar from "../components/Sidebar.jsx";
+import TopNav from "../components/TopNav.jsx";
+import { getUserStorageKey } from "../utils/userStorage.js";
 
 /* ─── Icons ──────────────────────────────────────────────────────── */
 const ChevronDown = () => (
@@ -37,7 +40,7 @@ const CheckIcon = () => (
 const sidebarItems = [
   { label: "Meetings",   external: false, badge: null },
   { label: "Recordings", external: false, badge: null },
-  { label: "Hub",        external: true,  badge: "New" },
+  { label: "Whiteboard", external: false, badge: "New" },
   { label: "Notes",      external: false, badge: null },
   { label: "Tasks",      external: false, badge: null },
   { label: "Scheduler",  external: true,  badge: null },
@@ -48,6 +51,7 @@ export default function Meetings() {
   const navigate = useNavigate();
   const { tab = "upcoming" } = useParams();
   const { user, logout } = useAuth();
+  const meetingsStorageKey = getUserStorageKey(user, "meetnova_scheduled_meetings");
 
   /* ── State ── */
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -68,17 +72,17 @@ export default function Meetings() {
   /* Load meetings from localStorage */
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("meetnova_scheduled_meetings") || "[]");
+      const saved = JSON.parse(localStorage.getItem(meetingsStorageKey) || "[]");
       setMeetings(saved);
     } catch (err) {
       console.error("Error loading meetings:", err);
     }
-  }, []);
+  }, [meetingsStorageKey]);
 
   /* Save/Sync helper */
   const saveMeetings = (list) => {
     setMeetings(list);
-    localStorage.setItem("meetnova_scheduled_meetings", JSON.stringify(list));
+    localStorage.setItem(meetingsStorageKey, JSON.stringify(list));
   };
 
   const handleLogout = () => { logout(); navigate("/login", { replace: true }); };
@@ -90,17 +94,14 @@ export default function Meetings() {
     } catch { alert("Could not start meeting."); }
   };
 
-  const handleJoinMeeting = () => {
-    const code = prompt("Enter meeting code:");
-    if (code?.trim()) navigate(`/meet/${code.trim().toUpperCase()}`);
-  };
-
   const handleSidebarClick = (label) => {
     if (label === "Meetings")   navigate("/meetings/upcoming");
     if (label === "Recordings") navigate("/recordings");
     if (label === "Calendar")   navigate("/calendar");
     if (label === "Scheduler")  navigate("/schedule");
     if (label === "Tasks")      navigate("/tasks");
+    if (label === "Notes")      navigate("/notes");
+    if (label === "Whiteboard") navigate("/whiteboard");
   };
 
   const handleStartMeeting = async (topic) => {
@@ -175,82 +176,12 @@ export default function Meetings() {
     <div style={st.root}>
 
       {/* ═══ TOP NAVIGATION ═══ */}
-      <header style={st.topNav}>
-        <div style={st.topNavLeft}>
-          <span style={st.logo}>MeetNova</span>
-          <nav style={st.navLinks}>
-            {["Products","Solutions","Resources","Plans & Pricing"].map((item) => (
-              <button key={item} onClick={() => item === "Plans & Pricing" && navigate("/pricing")} style={st.navLink}>{item}</button>
-            ))}
-          </nav>
-        </div>
-        <div style={st.topNavRight}>
-          <button onClick={() => navigate("/schedule")} style={st.navLinkHighlight}>Schedule</button>
-          <button onClick={handleJoinMeeting}           style={st.navLinkHighlight}>Join</button>
-          <button onClick={handleHostMeeting}           style={st.navLinkHighlightDrop}>Host <ChevronDown /></button>
-          <button                                       style={st.navLinkHighlightDrop}>Web App <ChevronDown /></button>
-          <div style={{ position: "relative" }}>
-            <button onClick={() => setShowProfileMenu((p) => !p)} style={st.avatar} title={user?.name}>{initials}</button>
-            {showProfileMenu && (
-              <UserProfileMenu
-                user={user}
-                onLogout={handleLogout}
-                onClose={() => setShowProfileMenu(false)}
-              />
-            )}
-          </div>
-        </div>
-      </header>
+      <TopNav />
 
       <div style={st.bodyRow}>
 
         {/* ═══ LEFT SIDEBAR ═══ */}
-        <aside style={st.sidebar}>
-          <div style={st.sidebarInner}>
-            <button onClick={() => navigate("/")} style={{ ...st.sidebarBtn, display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-              <HomeIcon /><span>Home</span>
-            </button>
-            <div style={st.sidebarDivider} />
-            <p style={{ ...st.sidebarGroupLabel, marginTop: 12 }}>My Products</p>
-            <ul style={st.sidebarList}>
-              {sidebarItems.map((item) => (
-                <li key={item.label} style={st.sidebarItem}>
-                  <button
-                    onClick={() => handleSidebarClick(item.label)}
-                    style={{
-                      ...st.sidebarBtn,
-                      background: item.label === "Meetings" ? "var(--sidebar-active-bg, #eff6ff)" : "none",
-                      color:      item.label === "Meetings" ? "var(--sidebar-active-color, #1a6ff4)" : "var(--sidebar-text, #1e293b)",
-                      fontWeight: item.label === "Meetings" ? "600"     : "500",
-                    }}
-                  >
-                    <span>{item.label}</span>
-                    <span style={st.sidebarIcons}>
-                      {item.badge    && <span style={st.newBadge}>{item.badge}</span>}
-                      {item.external && <span style={st.externalIcon}><ExternalIcon /></span>}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <div style={st.sidebarDivider} />
-            <button style={st.sidebarCollapsible} onClick={() => setMyAccountOpen((p) => !p)}>
-              <span style={{ transition:"transform 0.2s", display:"inline-flex", transform: myAccountOpen ? "rotate(90deg)":"rotate(0deg)" }}><ChevronRight /></span>
-              <span>My Account</span>
-            </button>
-            {myAccountOpen && (
-              <ul style={st.subMenu}>
-                <li><button style={st.subMenuItem} onClick={() => navigate("/profile")}>Profile</button></li>
-                <li><button style={st.subMenuItem} onClick={() => navigate("/")}>Settings</button></li>
-              </ul>
-            )}
-            {user?.role === "admin" && (
-              <button style={st.sidebarCollapsible} onClick={() => navigate("/admin")}>
-                <ChevronRight /><span>Admin</span>
-              </button>
-            )}
-          </div>
-        </aside>
+        <Sidebar activeTab="Meetings" />
 
         {/* ═══ MAIN CONTENT ═══ */}
         <main style={st.main}>

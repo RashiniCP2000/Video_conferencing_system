@@ -12,9 +12,14 @@ const benefits = [
   "Fast screen sharing and chat",
 ];
 
+function getDashboardPath(user) {
+  const isSystemAdmin = user?.role === "admin" && user?.email?.toLowerCase().endsWith("@admin.com");
+  return isSystemAdmin ? "/admin" : "/dashboard";
+}
+
 export default function Login() {
   const navigate = useNavigate();
-  const { loginWithToken, isAuthenticated } = useAuth();
+  const { loginWithToken, isAuthenticated, user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -22,9 +27,9 @@ export default function Login() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/", { replace: true });
+      navigate(getDashboardPath(user), { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, user]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -32,8 +37,8 @@ export default function Login() {
     setLoading(true);
     try {
       const { data } = await api.post("/auth/login", { email, password });
-      await loginWithToken(data.token);
-      navigate("/", { replace: true });
+      const loggedInUser = await loginWithToken(data.token);
+      navigate(getDashboardPath(loggedInUser), { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || "Login failed");
     } finally {
@@ -46,7 +51,7 @@ export default function Login() {
       <div className="mx-auto w-full max-w-5xl">
         <header className="mb-5 flex flex-col gap-2 border-b border-slate-200 pb-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-3xl font-black tracking-tight text-blue-700">MeetNova</span>
+            <Link to="/" className="text-3xl font-black tracking-tight text-blue-700 hover:opacity-90 transition-opacity">MeetNova</Link>
           </div>
           <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
             <span>New to MeetNova?</span>

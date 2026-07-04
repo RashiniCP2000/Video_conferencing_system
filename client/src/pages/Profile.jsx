@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import api from "../api/client.js";
-import UserProfileMenu from "../components/UserProfileMenu.jsx";
+import TopNav from "../components/TopNav.jsx";
 import avatarPhoto from "../assets/avatar_photo.png";
+import Sidebar from "../components/Sidebar.jsx";
 
 /* ─── Icons ──────────────────────────────────────────────────────── */
 const ChevronDown = () => (
@@ -26,7 +27,7 @@ const CopyIcon = () => (
 const sidebarItems = [
   { label: "Meetings",   external: false, badge: null },
   { label: "Recordings", external: false, badge: null },
-  { label: "Hub",        external: true,  badge: "New" },
+  { label: "Whiteboard", external: false, badge: "New" },
   { label: "Notes",      external: false, badge: null },
   { label: "Tasks",      external: false, badge: null },
   { label: "Scheduler",  external: true,  badge: null },
@@ -38,8 +39,87 @@ export default function Profile() {
   const { user, logout, setUserFromBootstrap } = useAuth();
 
   /* ── nav / sidebar state ── */
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [myAccountOpen, setMyAccountOpen] = useState(true);
+  const [billingHistory, setBillingHistory] = useState([]);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      api.get("/payments/billing-history")
+        .then(({ data }) => setBillingHistory(data.history || []))
+        .catch((err) => console.error("Failed to load billing history:", err));
+    }
+  }, [user]);
+
+  const handleCancelSubscription = async () => {
+    try {
+      const { data } = await api.post("/payments/cancel-subscription");
+      setUserFromBootstrap({
+        ...user,
+        plan: data.plan,
+        subscriptionStatus: data.subscriptionStatus
+      });
+      setShowCancelModal(false);
+      alert("Subscription cancelled successfully.");
+    } catch (err) {
+      alert("Failed to cancel subscription: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleDownloadInvoice = (invoice) => {
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Invoice - MeetNova</title>
+          <style>
+            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; }
+            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #eee; padding-bottom: 20px; }
+            .logo { font-size: 24px; font-weight: bold; color: #1a6ff4; }
+            .details { margin: 40px 0; line-height: 1.6; }
+            .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            .table th, .table td { border: 1px solid #eee; padding: 12px; text-align: left; }
+            .table th { background: #f9f9f9; }
+            .footer { border-top: 2px solid #eee; margin-top: 50px; padding-top: 20px; font-size: 12px; color: #888; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo">MeetNova Inc.</div>
+            <div><strong>Invoice ID:</strong> INV-\${invoice._id.substring(0, 8).toUpperCase()}</div>
+          </div>
+          <div class="details">
+            <strong>Billed To:</strong><br />
+            Name: \${user?.name}<br />
+            Email: \${user?.email}<br />
+            Date: \${new Date(invoice.createdAt).toLocaleDateString()}
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Cycle</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>MeetNova \${invoice.plan.toUpperCase()} Premium License Upgrade</td>
+                <td>Active Period Ending \${new Date(invoice.currentPeriodEnd).toLocaleDateString()}</td>
+                <td>\${invoice.plan === "student" ? "$4.99" : "$9.99"}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="footer">
+            Thank you for your business. For support, contact billing@meetnova.com
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   /* ── Personal Info states ── */
   const [firstName, setFirstName] = useState("");
@@ -94,32 +174,7 @@ export default function Profile() {
     }
   }, []);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login", { replace: true });
-  };
 
-  const handleHostMeeting = async () => {
-    try {
-      const { data } = await api.post("/meetings", { title: `${user?.name || "User"}'s Instant Meeting` });
-      navigate(`/meet/${data.meetingId}`);
-    } catch {
-      alert("Could not start meeting.");
-    }
-  };
-
-  const handleJoinMeeting = () => {
-    const code = prompt("Enter meeting code:");
-    if (code?.trim()) navigate(`/meet/${code.trim().toUpperCase()}`);
-  };
-
-  const handleSidebarClick = (label) => {
-    if (label === "Meetings")   navigate("/meetings");
-    else if (label === "Recordings") navigate("/recordings");
-    else if (label === "Calendar")   navigate("/calendar");
-    else if (label === "Scheduler")  navigate("/schedule");
-    else if (label === "Tasks")      navigate("/tasks");
-  };
 
   const handleCopyPersonalId = () => {
     navigator.clipboard.writeText(PERSONAL_ID.replace(/\s/g, ""));
@@ -158,96 +213,11 @@ export default function Profile() {
   return (
     <div style={st.root}>
       {/* ═══ TOP NAVIGATION ═══ */}
-      <header style={st.topNav}>
-        <div style={st.topNavLeft}>
-          <span style={st.logo}>MeetNova</span>
-          <nav style={st.navLinks}>
-            {["Products", "Solutions", "Resources", "Plans & Pricing"].map((item) => (
-              <button
-                key={item}
-                onClick={() => item === "Plans & Pricing" && navigate("/pricing")}
-                style={st.navLink}
-              >
-                {item}
-              </button>
-            ))}
-          </nav>
-        </div>
-        <div style={st.topNavRight}>
-          <button onClick={() => navigate("/schedule")} style={st.navLinkHighlight}>Schedule</button>
-          <button onClick={handleJoinMeeting}           style={st.navLinkHighlight}>Join</button>
-          <button onClick={handleHostMeeting}           style={st.navLinkHighlightDrop}>Host <ChevronDown /></button>
-          <button                                       style={st.navLinkHighlightDrop}>Web App <ChevronDown /></button>
-          <div style={{ position: "relative" }}>
-            <button onClick={() => setShowProfileMenu((p) => !p)} style={st.avatar} title={user?.name}>{initials}</button>
-            {showProfileMenu && (
-              <UserProfileMenu
-                user={user}
-                onLogout={handleLogout}
-                onClose={() => setShowProfileMenu(false)}
-              />
-            )}
-          </div>
-        </div>
-      </header>
+      <TopNav />
 
       <div style={st.bodyRow}>
         {/* ═══ LEFT SIDEBAR ═══ */}
-        <aside style={st.sidebar}>
-          <div style={st.sidebarInner}>
-            <button onClick={() => navigate("/")} style={{ ...st.sidebarBtn, display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <HomeIcon /><span>Home</span>
-            </button>
-            <div style={st.sidebarDivider} />
-            <p style={{ ...st.sidebarGroupLabel, marginTop: 12 }}>My Products</p>
-            <ul style={st.sidebarList}>
-              {sidebarItems.map((item) => (
-                <li key={item.label} style={st.sidebarItem}>
-                  <button
-                    onClick={() => handleSidebarClick(item.label)}
-                    style={st.sidebarBtn}
-                  >
-                    <span>{item.label}</span>
-                    <span style={st.sidebarIcons}>
-                      {item.badge && <span style={st.newBadge}>{item.badge}</span>}
-                      {item.external && <span style={st.externalIcon}><ExternalIcon /></span>}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <div style={st.sidebarDivider} />
-            <button style={st.sidebarCollapsible} onClick={() => setMyAccountOpen((p) => !p)}>
-              <span style={{ transition: "transform 0.2s", display: "inline-flex", transform: myAccountOpen ? "rotate(90deg)" : "rotate(0deg)" }}><ChevronRight /></span>
-              <span>My Account</span>
-            </button>
-            {myAccountOpen && (
-              <ul style={st.subMenu}>
-                <li>
-                  <button
-                    style={{ ...st.subMenuItem, ...st.subMenuItemActive }}
-                    onClick={() => navigate("/profile")}
-                  >
-                    Profile
-                  </button>
-                </li>
-                <li>
-                  <button
-                    style={st.subMenuItem}
-                    onClick={() => navigate("/")}
-                  >
-                    Settings
-                  </button>
-                </li>
-              </ul>
-            )}
-            {user?.role === "admin" && (
-              <button style={st.sidebarCollapsible} onClick={() => navigate("/admin")}>
-                <ChevronRight /><span>Admin</span>
-              </button>
-            )}
-          </div>
-        </aside>
+        <Sidebar activeSubPage="profile" />
 
         {/* ═══ MAIN CONTENT ═══ */}
         <main style={st.main}>
@@ -425,13 +395,15 @@ export default function Profile() {
 
               {/* ─── SECTION 3: ACCOUNT STATUS & ACTION ─── */}
               <div style={{ ...st.sectionCard, gridColumn: "1 / -1" }}>
-                <h2 style={st.sectionTitle}>3. Account Settings</h2>
-                <p style={st.sectionDesc}>View your current licensing options and unlock additional features.</p>
+                <h2 style={st.sectionTitle}>3. Subscription & Billing</h2>
+                <p style={st.sectionDesc}>Manage your active plans, billing history, and license tiers.</p>
                 
                 <div style={st.accountInfoRow}>
                   <div style={st.accountField}>
                     <span style={st.detailLabel}>License Type</span>
-                    <span style={st.detailVal}>{user?.plan ? user.plan.toUpperCase() : "FREE"}</span>
+                    <span style={{ ...st.detailVal, color: user?.plan !== "free" ? "#1a6ff4" : "var(--text-primary)" }}>
+                      {user?.plan ? user.plan.toUpperCase() : "FREE"}
+                    </span>
                   </div>
                   
                   <div style={st.accountField}>
@@ -446,14 +418,161 @@ export default function Profile() {
                     <span style={st.detailVal}>{user?.role ? user.role.toUpperCase() : "HOST"}</span>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => navigate("/pricing")}
-                    style={st.upgradeBtn}
-                  >
-                    Upgrade Plan
-                  </button>
+                  <div style={{ display: "flex", gap: "10px", marginLeft: "auto" }}>
+                    {user?.plan !== "free" && user?.subscriptionStatus === "active" && (
+                      <button
+                        type="button"
+                        onClick={() => setShowCancelModal(true)}
+                        style={{
+                          background: "#ef4444",
+                          color: "#ffffff",
+                          border: "none",
+                          borderRadius: "8px",
+                          padding: "10px 16px",
+                          fontSize: "13px",
+                          fontWeight: "700",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        Cancel Subscription
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => navigate("/pricing")}
+                      style={st.upgradeBtn}
+                    >
+                      {user?.plan === "free" ? "Upgrade Plan" : "Change Plan"}
+                    </button>
+                  </div>
                 </div>
+
+                {/* Billing History Section */}
+                <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid var(--border-color, #e2e8f0)" }}>
+                  <h3 style={{ fontSize: "14px", fontWeight: "700", marginBottom: "12px", color: "var(--text-primary)" }}>Invoice History</h3>
+                  {billingHistory.length > 0 ? (
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                        <thead>
+                          <tr style={{ borderBottom: "1px solid var(--border-color, #e2e8f0)", textAlign: "left" }}>
+                            <th style={{ padding: "8px 0", color: "var(--text-muted, #64748b)" }}>Invoice ID</th>
+                            <th style={{ padding: "8px 0", color: "var(--text-muted, #64748b)" }}>Date</th>
+                            <th style={{ padding: "8px 0", color: "var(--text-muted, #64748b)" }}>Plan</th>
+                            <th style={{ padding: "8px 0", color: "var(--text-muted, #64748b)" }}>Status</th>
+                            <th style={{ padding: "8px 0", textAlign: "right", color: "var(--text-muted, #64748b)" }}>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {billingHistory.map((invoice) => (
+                            <tr key={invoice._id} style={{ borderBottom: "1px solid var(--border-color, #e2e8f0)" }}>
+                              <td style={{ padding: "10px 0", fontFamily: "monospace" }}>INV-{invoice._id.substring(0, 8).toUpperCase()}</td>
+                              <td style={{ padding: "10px 0" }}>{new Date(invoice.createdAt).toLocaleDateString()}</td>
+                              <td style={{ padding: "10px 0", textTransform: "capitalize" }}>{invoice.plan}</td>
+                              <td style={{ padding: "10px 0" }}>
+                                <span style={{
+                                  fontSize: "11px",
+                                  fontWeight: "700",
+                                  background: invoice.status === "active" ? "rgba(16, 185, 129, 0.12)" : "rgba(239, 68, 68, 0.12)",
+                                  color: invoice.status === "active" ? "#10b981" : "#ef4444",
+                                  padding: "2px 6px",
+                                  borderRadius: "4px"
+                                }}>
+                                  {invoice.status.toUpperCase()}
+                                </span>
+                              </td>
+                              <td style={{ padding: "10px 0", textAlign: "right" }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadInvoice(invoice)}
+                                  style={{
+                                    background: "none",
+                                    border: "none",
+                                    color: "#1a6ff4",
+                                    cursor: "pointer",
+                                    fontWeight: "600",
+                                    fontSize: "13px"
+                                  }}
+                                >
+                                  View Invoice
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: "13px", color: "var(--text-muted, #64748b)", margin: 0 }}>No invoice history found.</p>
+                  )}
+                </div>
+
+                {/* Cancel Subscription Confirmation Modal */}
+                {showCancelModal && (
+                  <div style={{
+                    position: "fixed",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: "rgba(15, 20, 25, 0.7)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    zIndex: 9999
+                  }}>
+                    <div style={{
+                      background: "var(--bg-card, #ffffff)",
+                      border: "1px solid var(--border-color, #e2e8f0)",
+                      padding: "28px",
+                      borderRadius: "16px",
+                      maxWidth: "400px",
+                      width: "100%",
+                      boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1)",
+                      textAlign: "center"
+                    }}>
+                      <h3 style={{ fontSize: "18px", fontWeight: "800", marginBottom: "12px", color: "var(--text-primary)" }}>Cancel Subscription?</h3>
+                      <p style={{ fontSize: "14px", color: "var(--text-muted, #64748b)", lineHeight: "1.5", marginBottom: "24px" }}>
+                        Are you sure you want to cancel your premium subscription? Your license will immediately downgrade back to the Free plan.
+                      </p>
+                      <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+                        <button
+                          type="button"
+                          onClick={() => setShowCancelModal(false)}
+                          style={{
+                            padding: "10px 20px",
+                            borderRadius: "8px",
+                            border: "1px solid var(--border-color, #cbd5e1)",
+                            background: "var(--btn-outline-bg, #fff)",
+                            color: "var(--btn-outline-text, #334155)",
+                            fontSize: "13px",
+                            fontWeight: "600",
+                            cursor: "pointer"
+                          }}
+                        >
+                          Keep Plan
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelSubscription}
+                          style={{
+                            padding: "10px 20px",
+                            borderRadius: "8px",
+                            border: "none",
+                            background: "#ef4444",
+                            color: "#ffffff",
+                            fontSize: "13px",
+                            fontWeight: "750",
+                            cursor: "pointer"
+                          }}
+                        >
+                          Confirm Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
               </div>
 
               {/* Form Actions Footer */}

@@ -23,8 +23,8 @@ export default function Register() {
     const name = `${firstName.trim()} ${lastName.trim()}`.trim();
     try {
       const { data } = await api.post("/auth/register", { name, email, password });
-      await loginWithToken(data.token);
-      navigate("/education-data", { replace: true });
+      const registeredUser = await loginWithToken(data.token);
+      navigate(registeredUser?.role === "admin" ? "/admin" : "/education-data", { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || "Registration failed");
     } finally {
@@ -36,7 +36,7 @@ export default function Register() {
     <div className="min-h-screen bg-[#f8fafc] px-4 py-6">
       <div className="mx-auto w-full max-w-6xl">
         <header className="mb-6 flex items-center justify-between text-sm text-slate-600">
-          <div className="text-2xl font-bold text-blue-700">MeetNova</div>
+          <Link to="/" className="text-2xl font-bold text-blue-700 hover:opacity-90 transition-opacity">MeetNova</Link>
           <div className="flex flex-wrap items-center gap-4">
             <span>Already have an account?</span>
             <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700">

@@ -10,7 +10,11 @@ async function initMailer() {
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
 
-  if (host && user && pass) {
+  const isPlaceholder =
+    user === 'your-gmail@gmail.com' ||
+    pass === 'your-16-char-app-password';
+
+  if (host && user && pass && !isPlaceholder) {
     console.log('Using configured SMTP settings for mailer');
     transporter = nodemailer.createTransport({
       host,
@@ -21,6 +25,20 @@ async function initMailer() {
         pass,
       },
     });
+  } else if (isPlaceholder) {
+    console.log('SMTP credentials in .env are default placeholders. Bypassing Gmail connection and using console logger.');
+    transporter = {
+      sendMail: async (options) => {
+        console.log('\n=======================================');
+        console.log('       FALLBACK EMAIL LOGGER (PLACEHOLDERS)');
+        console.log(`To: ${options.to}`);
+        console.log(`Subject: ${options.subject}`);
+        console.log('---------------------------------------');
+        console.log('Email sent successfully (simulated).');
+        console.log('=======================================\n');
+        return { messageId: 'fallback-id-console' };
+      }
+    };
   } else {
     console.log('No SMTP credentials found in .env. Creating Ethereal test account...');
     try {
@@ -47,7 +65,7 @@ async function initMailer() {
           console.log(`Subject: ${options.subject}`);
           console.log(`Body (HTML): ${options.html}`);
           console.log('-----------------------------');
-          return { messageId: 'fallback-id' };
+          return { messageId: 'fallback-id-console' };
         }
       };
     }

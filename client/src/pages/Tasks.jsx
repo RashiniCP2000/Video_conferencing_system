@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import api from "../api/client.js";
-import UserProfileMenu from "../components/UserProfileMenu.jsx";
+import TopNav from "../components/TopNav.jsx";
+import { getUserStorageKey } from "../utils/userStorage.js";
+import Sidebar from "../components/Sidebar.jsx";
 
 /* ─── Icons ─────────────────────────────────────────────────────── */
 const ChevronDown  = () => <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M7 10l5 5 5-5z"/></svg>;
@@ -26,7 +28,7 @@ const UserIcon     = () => <svg viewBox="0 0 24 24" fill="currentColor" width="1
 const sidebarItems = [
   { label: "Meetings",   external: false, badge: null },
   { label: "Recordings", external: false, badge: null },
-  { label: "Hub",        external: true,  badge: "New" },
+  { label: "Whiteboard", external: false, badge: "New" },
   { label: "Notes",      external: false, badge: null },
   { label: "Tasks",      external: false, badge: null },
   { label: "Scheduler",  external: true,  badge: null },
@@ -45,8 +47,6 @@ const STATUS_COLUMNS = [
   { id: "inprogress", label: "In Progress", color: "#3b82f6", bg: "rgba(59,130,246,0.1)"  },
   { id: "completed",  label: "Completed",   color: "#10b981", bg: "rgba(16,185,129,0.1)"  },
 ];
-
-const LS_KEY = "meetnova_tasks";
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -156,10 +156,10 @@ function TaskCard({ task, onEdit, onDelete, onStatusChange, draggable, onDragSta
 export default function Tasks() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const tasksStorageKey = getUserStorageKey(user, "meetnova_tasks");
+  const meetingsStorageKey = getUserStorageKey(user, "meetnova_scheduled_meetings");
 
-  /* ── Nav ── */
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [myAccountOpen, setMyAccountOpen]     = useState(false);
+
 
   /* ── View Mode ── */
   const [viewMode, setViewMode] = useState("list"); // "list" | "kanban"
@@ -198,15 +198,15 @@ export default function Tasks() {
   /* ── Load tasks from localStorage ── */
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
+      const saved = JSON.parse(localStorage.getItem(tasksStorageKey) || "[]");
       setTasks(saved);
     } catch { setTasks([]); }
-  }, []);
+  }, [tasksStorageKey, user]);
 
   /* ── Persist tasks ── */
   const persist = (list) => {
     setTasks(list);
-    localStorage.setItem(LS_KEY, JSON.stringify(list));
+    localStorage.setItem(tasksStorageKey, JSON.stringify(list));
   };
 
   /* ── Reminders check ── */
@@ -222,30 +222,22 @@ export default function Tasks() {
   const [meetings, setMeetings] = useState([]);
   useEffect(() => {
     try {
-      const m = JSON.parse(localStorage.getItem("meetnova_scheduled_meetings") || "[]");
+      const m = JSON.parse(localStorage.getItem(meetingsStorageKey) || "[]");
       setMeetings(m);
     } catch { /* ignore */ }
-  }, []);
+  }, [meetingsStorageKey, user]);
 
   const showToast = (message, type = "success") => setToast({ message, type });
 
-  const handleLogout = () => { logout(); navigate("/login", { replace: true }); };
-  const handleHostMeeting = async () => {
-    try {
-      const { data } = await api.post("/meetings", { title: `${user?.name || "User"}'s Instant Meeting` });
-      navigate(`/meet/${data.meetingId}`);
-    } catch { alert("Could not start meeting."); }
-  };
-  const handleJoinMeeting = () => {
-    const code = prompt("Enter meeting code:");
-    if (code?.trim()) navigate(`/meet/${code.trim().toUpperCase()}`);
-  };
+
   const handleSidebarClick = (label) => {
     if (label === "Meetings")   navigate("/meetings");
     else if (label === "Recordings") navigate("/recordings");
     else if (label === "Calendar")   navigate("/calendar");
     else if (label === "Scheduler")  navigate("/schedule");
     else if (label === "Tasks")      navigate("/tasks");
+    else if (label === "Notes")      navigate("/notes");
+    else if (label === "Whiteboard") navigate("/whiteboard");
   };
 
   /* ── Modal helpers ── */
@@ -354,77 +346,11 @@ export default function Tasks() {
       `}</style>
 
       {/* ═══ TOP NAVIGATION ═══ */}
-      <header style={st.topNav}>
-        <div style={st.topNavLeft}>
-          <span style={st.logo}>MeetNova</span>
-          <nav style={st.navLinks}>
-            {["Products","Solutions","Resources","Plans & Pricing"].map(item => (
-              <button key={item} onClick={() => item === "Plans & Pricing" && navigate("/pricing")} style={st.navLink}>{item}</button>
-            ))}
-          </nav>
-        </div>
-        <div style={st.topNavRight}>
-          <button onClick={() => navigate("/schedule")} style={st.navLinkHighlight}>Schedule</button>
-          <button onClick={handleJoinMeeting}           style={st.navLinkHighlight}>Join</button>
-          <button onClick={handleHostMeeting}           style={st.navLinkHighlightDrop}>Host <ChevronDown /></button>
-          <button                                       style={st.navLinkHighlightDrop}>Web App <ChevronDown /></button>
-          <div style={{ position:"relative" }}>
-            <button onClick={() => setShowProfileMenu(p => !p)} style={st.avatar} title={user?.name}>{initials}</button>
-            {showProfileMenu && (
-              <UserProfileMenu user={user} onLogout={handleLogout} onClose={() => setShowProfileMenu(false)} />
-            )}
-          </div>
-        </div>
-      </header>
+      <TopNav />
 
       <div style={st.bodyRow}>
         {/* ═══ LEFT SIDEBAR ═══ */}
-        <aside style={st.sidebar}>
-          <div style={st.sidebarInner}>
-            <button onClick={() => navigate("/")} style={{ ...st.sidebarBtn, display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-              <HomeIcon /><span>Home</span>
-            </button>
-            <div style={st.sidebarDivider} />
-            <p style={{ ...st.sidebarGroupLabel, marginTop:12 }}>My Products</p>
-            <ul style={st.sidebarList}>
-              {sidebarItems.map(item => (
-                <li key={item.label} style={st.sidebarItem}>
-                  <button
-                    onClick={() => handleSidebarClick(item.label)}
-                    style={{
-                      ...st.sidebarBtn,
-                      background: item.label === "Tasks" ? "var(--sidebar-active-bg,#eff6ff)" : "none",
-                      color:      item.label === "Tasks" ? "var(--sidebar-active-color,#1a6ff4)" : "var(--sidebar-text,#1e293b)",
-                      fontWeight: item.label === "Tasks" ? "600" : "500",
-                    }}
-                  >
-                    <span>{item.label}</span>
-                    <span style={st.sidebarIcons}>
-                      {item.badge && <span style={st.newBadge}>{item.badge}</span>}
-                      {item.external && item.label !== "Tasks" && <span style={st.externalIcon}><ExternalIcon /></span>}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <div style={st.sidebarDivider} />
-            <button style={st.sidebarCollapsible} onClick={() => setMyAccountOpen(p => !p)}>
-              <span style={{ transition:"transform 0.2s", display:"inline-flex", transform: myAccountOpen ? "rotate(90deg)" : "rotate(0deg)" }}><ChevronRight /></span>
-              <span>My Account</span>
-            </button>
-            {myAccountOpen && (
-              <ul style={st.subMenu}>
-                <li><button style={st.subMenuItem} onClick={() => navigate("/profile")}>Profile</button></li>
-                <li><button style={st.subMenuItem} onClick={() => navigate("/")}>Settings</button></li>
-              </ul>
-            )}
-            {user?.role === "admin" && (
-              <button style={st.sidebarCollapsible} onClick={() => navigate("/admin")}>
-                <ChevronRight /><span>Admin</span>
-              </button>
-            )}
-          </div>
-        </aside>
+        <Sidebar activeTab="Tasks" />
 
         {/* ═══ MAIN CONTENT ═══ */}
         <main style={st.main}>
