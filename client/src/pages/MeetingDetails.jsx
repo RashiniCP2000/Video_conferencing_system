@@ -113,6 +113,8 @@ export default function MeetingDetails() {
     durationHrs = "1",
     durationMins = "0",
   } = meeting;
+  const meetingTitle = meeting.title || topic;
+  const meetingCode = String(meeting.meetingCode || meetingId || "").replace(/\s/g, "");
 
   /* ── sidebar / nav state ── */
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -140,23 +142,46 @@ export default function MeetingDetails() {
     : meetingId;
   const inviteLink = `https://meetnova.us/j/${cleanId}?pwd=${passcode}`;
 
+  const effectiveMeetingId = meetingCode || formattedMeetingId;
+  const effectiveInviteLink = meetingCode
+    ? `${window.location.origin}/meet/${meetingCode}`
+    : inviteLink;
+
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(inviteLink);
+    navigator.clipboard.writeText(effectiveInviteLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleCopyInvitation = () => {
-    const text = `MeetNova Meeting\n\nTopic: ${topic}\nTime: ${formattedTime}\n\nJoin Meeting:\n${inviteLink}\n\nMeeting ID: ${formattedMeetingId}\nPasscode: ${passcode}`;
+    const text = `MeetNova Meeting\n\nTopic: ${meetingTitle}\nTime: ${formattedTime}\n\nJoin Meeting:\n${effectiveInviteLink}\n\nMeeting ID: ${effectiveMeetingId}\nPasscode: ${passcode}`;
     navigator.clipboard.writeText(text);
     alert("Invitation copied to clipboard!");
   };
 
   const handleStart = async () => {
+    if (meetingCode) {
+      navigate(`/meet/${meetingCode}`);
+      return;
+    }
     try {
-      const { data } = await api.post("/meetings", { title: topic });
+      const { data } = await api.post("/meetings", { title: meetingTitle });
       navigate(`/meet/${data.meetingId}`);
     } catch { alert("Could not start meeting. Please try again."); }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Delete this meeting?")) return;
+    if (!meetingCode) {
+      navigate("/meetings/upcoming");
+      return;
+    }
+    try {
+      await api.delete(`/meetings/scheduled/${meetingCode}`);
+      navigate("/meetings/upcoming");
+    } catch (err) {
+      alert(err.response?.data?.message || "Could not delete meeting.");
+    }
   };
 
   const handleLogout = () => { logout(); navigate("/login", { replace: true }); };
@@ -188,13 +213,13 @@ export default function MeetingDetails() {
           {/* Breadcrumb */}
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:24, fontSize:14 }}>
             <button
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/meetings/upcoming")}
               style={{ background:"none", border:"none", cursor:"pointer", color:"var(--accent-blue, #1a6ff4)", fontSize:14, fontWeight:500, padding:0, fontFamily:"inherit" }}
             >
               My Meetings
             </button>
             <span style={{ color:"var(--text-muted, #94a3b8)" }}>›</span>
-            <span style={{ color:"var(--text-primary, #1e293b)", fontWeight:600 }}>Manage &quot;{topic}&quot;</span>
+            <span style={{ color:"var(--text-primary, #1e293b)", fontWeight:600 }}>Manage &quot;{meetingTitle}&quot;</span>
           </div>
 
           {/* Card */}
@@ -227,7 +252,7 @@ export default function MeetingDetails() {
                 {[
                   {
                     label: "Topic",
-                    content: <span style={{ fontSize:15, color:"var(--text-primary, #1e293b)" }}>{topic}</span>,
+                    content: <span style={{ fontSize:15, color:"var(--text-primary, #1e293b)" }}>{meetingTitle}</span>,
                   },
                   {
                     label: "Time",
@@ -240,7 +265,7 @@ export default function MeetingDetails() {
                   },
                   {
                     label: "Meeting ID",
-                    content: <span style={{ fontSize:15, color:"var(--text-primary, #1e293b)", letterSpacing:"0.04em" }}>{formattedMeetingId}</span>,
+                    content: <span style={{ fontSize:15, color:"var(--text-primary, #1e293b)", letterSpacing:"0.04em" }}>{effectiveMeetingId}</span>,
                   },
                   {
                     label: "Security",
@@ -264,9 +289,9 @@ export default function MeetingDetails() {
                     label: "Invite Link",
                     content: (
                       <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
-                        <a href={inviteLink} target="_blank" rel="noreferrer"
+                        <a href={effectiveInviteLink} target="_blank" rel="noreferrer"
                           style={{ color:"var(--accent-blue-text, #1a6ff4)", fontSize:13, wordBreak:"break-all", maxWidth:480 }}>
-                          {inviteLink}
+                          {effectiveInviteLink}
                         </a>
                         <button
                           onClick={handleCopyLink}
@@ -281,17 +306,17 @@ export default function MeetingDetails() {
                     label: "Add to",
                     content: (
                       <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
-                        <a href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(topic)}&details=${encodeURIComponent(`Join: ${inviteLink}`)}`}
+                        <a href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(meetingTitle)}&details=${encodeURIComponent(`Join: ${effectiveInviteLink}`)}`}
                           target="_blank" rel="noreferrer"
                           style={{ display:"flex", alignItems:"center", gap:6, color:"#4285F4", fontSize:13, fontWeight:600, textDecoration:"none", background:"#f0f7ff", borderRadius:8, padding:"6px 12px" }}>
                           <GoogleCalIcon /> Google Calendar
                         </a>
-                        <a href={`data:text/calendar;charset=utf8,BEGIN:VCALENDAR%0AVERSION:2.0%0ABEGIN:VEVENT%0ASUMMARY:${encodeURIComponent(topic)}%0ADESCRIPTION:${encodeURIComponent(inviteLink)}%0AEND:VEVENT%0AEND:VCALENDAR`}
+                        <a href={`data:text/calendar;charset=utf8,BEGIN:VCALENDAR%0AVERSION:2.0%0ABEGIN:VEVENT%0ASUMMARY:${encodeURIComponent(meetingTitle)}%0ADESCRIPTION:${encodeURIComponent(effectiveInviteLink)}%0AEND:VEVENT%0AEND:VCALENDAR`}
                           download="meeting.ics"
                           style={{ display:"flex", alignItems:"center", gap:6, color:"#0078D4", fontSize:13, fontWeight:600, textDecoration:"none", background:"#eff8ff", borderRadius:8, padding:"6px 12px" }}>
                           <OutlookIcon /> Outlook Calendar (.ics)
                         </a>
-                        <a href={`https://calendar.yahoo.com/?v=60&title=${encodeURIComponent(topic)}&desc=${encodeURIComponent(inviteLink)}`}
+                        <a href={`https://calendar.yahoo.com/?v=60&title=${encodeURIComponent(meetingTitle)}&desc=${encodeURIComponent(effectiveInviteLink)}`}
                           target="_blank" rel="noreferrer"
                           style={{ display:"flex", alignItems:"center", gap:6, color:"#6001D2", fontSize:13, fontWeight:600, textDecoration:"none", background:"#f5f0ff", borderRadius:8, padding:"6px 12px" }}>
                           <YahooIcon /> Yahoo Calendar
@@ -347,7 +372,7 @@ export default function MeetingDetails() {
               Edit
             </button>
             <button
-              onClick={() => { if (window.confirm("Delete this meeting?")) navigate("/"); }}
+              onClick={handleDelete}
               style={{ background:"var(--btn-outline-bg, #fff)", color:"#e11d48", border:"1px solid #fecaca", borderRadius:10, padding:"10px 18px", fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}
             >
               Delete

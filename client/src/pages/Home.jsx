@@ -505,6 +505,92 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* Price Plan Section */}
+        <section style={{ marginTop: 28 }}>
+          <div style={{ marginBottom: 14 }}>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>
+              Price Plans
+            </h2>
+            <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--text-muted, #64748b)" }}>
+              BASIC, STUDENT and CORPORATE plans with pricing and features.
+            </p>
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 14,
+            }}
+          >
+            {[
+              {
+                key: "basic",
+                title: "BASIC",
+                price: "LKR 0 (FREE)",
+                features: ["Unlimited meetings", "Limited duration", "No recording", "Google Calendar integration"],
+                cta: "Current / Switch",
+                onClick: () => navigate("/pricing?highlight=basic"),
+              },
+              {
+                key: "student",
+                title: "STUDENT",
+                price: "LKR 1,500 (One-time)",
+                features: ["Meeting recording", "20GB cloud storage", "Download/Delete recordings", "Calendar integration"],
+                cta: "Subscribe / Upgrade",
+                onClick: () => navigate("/pricing?highlight=student"),
+              },
+              {
+                key: "corporate",
+                title: "CORPORATE",
+                price: "LKR 2,000/mo · LKR 20,000/yr",
+                features: ["Unlimited meetings", "Recording enabled", "Full admin control", "All premium features"],
+                cta: "Subscribe / Upgrade",
+                onClick: () => navigate("/pricing?highlight=corporate"),
+              },
+            ].map((plan) => (
+              <article
+                key={plan.key}
+                style={{
+                  background: "var(--bg-card, #fff)",
+                  border: "1px solid var(--border-color, #e2e8f0)",
+                  borderRadius: 14,
+                  padding: 16,
+                  boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 800, color: "var(--accent-blue, #1a6ff4)", letterSpacing: "0.06em" }}>
+                  {plan.title}
+                </div>
+                <div style={{ marginTop: 6, fontSize: 18, fontWeight: 800, color: "var(--text-primary, #0f172a)" }}>
+                  {plan.price}
+                </div>
+                <ul style={{ margin: "12px 0", paddingLeft: 18, color: "var(--text-secondary, #334155)", fontSize: 12, lineHeight: 1.7 }}>
+                  {plan.features.map((f) => (
+                    <li key={f}>{f}</li>
+                  ))}
+                </ul>
+                <button
+                  onClick={plan.onClick}
+                  style={{
+                    width: "100%",
+                    border: "none",
+                    borderRadius: 10,
+                    background: "var(--accent-blue, #1a6ff4)",
+                    color: "#fff",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: "9px 10px",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {plan.cta}
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
       </>
     );
   };

@@ -4,15 +4,14 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { ArrowLeftIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
 
 const PLAN_PRICES = {
-  basic: {
-    name: "Basic Plan",
-    monthlyPrice: 9.99,
-    yearlyPrice: 79.99,
-  },
   student: {
     name: "Student Plan",
-    monthlyPrice: 4.99,
-    yearlyPrice: 39.99,
+    oneTimePrice: 1500,
+  },
+  corporate: {
+    name: "Corporate Plan",
+    monthlyPrice: 2000,
+    yearlyPrice: 20000,
   },
 };
 
@@ -54,8 +53,12 @@ export default function CheckoutBilling() {
   if (!plan || !PLAN_PRICES[plan]) return null;
 
   const planDetails = PLAN_PRICES[plan];
-  const subtotal = interval === "yearly" ? planDetails.yearlyPrice : planDetails.monthlyPrice;
-  const taxRate = 0.05; // 5% VAT / GST
+  const subtotal = plan === "student"
+    ? planDetails.oneTimePrice
+    : interval === "yearly"
+      ? planDetails.yearlyPrice
+      : planDetails.monthlyPrice;
+  const taxRate = 0.0;
   const tax = subtotal * taxRate;
   const total = subtotal + tax;
 
@@ -194,28 +197,30 @@ export default function CheckoutBilling() {
               <div className="flex justify-between items-start text-sm">
                 <div>
                   <div className="font-semibold text-slate-800">{planDetails.name}</div>
-                  <div className="text-xs text-slate-500 capitalize mt-0.5">{interval} billing</div>
+                  <div className="text-xs text-slate-500 capitalize mt-0.5">
+                    {plan === "student" ? "one-time payment" : `${interval} billing`}
+                  </div>
                 </div>
-                <span className="font-bold text-slate-800">${subtotal.toFixed(2)}</span>
+                <span className="font-bold text-slate-800">LKR {subtotal.toFixed(2)}</span>
               </div>
 
               <div className="border-t border-slate-200 my-4"></div>
 
               <div className="flex justify-between text-sm text-slate-500">
                 <span>Subtotal</span>
-                <span className="text-slate-800">${subtotal.toFixed(2)}</span>
+                <span className="text-slate-800">LKR {subtotal.toFixed(2)}</span>
               </div>
 
               <div className="flex justify-between text-sm text-slate-500">
-                <span>Taxes & Fees (5% VAT)</span>
-                <span className="text-slate-800">${tax.toFixed(2)}</span>
+                <span>Taxes & Fees</span>
+                <span className="text-slate-800">LKR {tax.toFixed(2)}</span>
               </div>
 
               <div className="border-t border-slate-200 my-4"></div>
 
               <div className="flex justify-between items-baseline">
                 <span className="text-slate-700 font-bold text-base">Total Payable</span>
-                <span className="text-3xl font-extrabold text-slate-900">${total.toFixed(2)}</span>
+                <span className="text-3xl font-extrabold text-slate-900">LKR {total.toFixed(2)}</span>
               </div>
             </div>
           </div>

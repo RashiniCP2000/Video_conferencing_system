@@ -106,6 +106,7 @@ export default function MeetingRoom() {
   const [joinError, setJoinError] = useState("");
 
   const [micOn, setMicOn] = useState(true);
+  const [hostMuted, setHostMuted] = useState(false);
   const [camOn, setCamOn] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
 
@@ -121,6 +122,21 @@ export default function MeetingRoom() {
 
   const [layoutMode, setLayoutMode] = useState("grid");
   const [spotlightId, setSpotlightId] = useState(null);
+
+  // New features states
+  const [handRaised, setHandRaised] = useState(false);
+  const [raisedHands, setRaisedHands] = useState({});
+  const [backgroundEffect, setBackgroundEffect] = useState("none");
+  const [captionsActive, setCaptionsActive] = useState(false);
+  const [captionsSupported, setCaptionsSupported] = useState(() =>
+    typeof window !== "undefined" && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)
+  );
+  const [activeCaptions, setActiveCaptions] = useState([]);
+  const [participantMutedByHost, setParticipantMutedByHost] = useState({});
+
+  // New features refs
+  const filterProcessorRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   const [waitingForAdmission, setWaitingForAdmission] = useState(false);
   const [waitingPeers, setWaitingPeers] = useState([]);
@@ -218,8 +234,26 @@ export default function MeetingRoom() {
     setWaitingPeers([]);
     setLiveHostSocketId(null);
     setParticipants([]);
+    setParticipantMutedByHost({});
     setChatMessages([]);
     videoElsRef.current = {};
+
+    // Cleanup new features
+    setHandRaised(false);
+    setRaisedHands({});
+    setHostMuted(false);
+    setBackgroundEffect("none");
+    setCaptionsActive(false);
+    setActiveCaptions([]);
+    if (filterProcessorRef.current) {
+      filterProcessorRef.current.stop();
+      filterProcessorRef.current = null;
+    }
+    if (recognitionRef.current) {
+      recognitionRef.current.onend = null;
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
   }, []);
 
   useEffect(() => () => teardownCall(), [teardownCall]);
@@ -344,6 +378,11 @@ export default function MeetingRoom() {
       socket.on("user-left", ({ socketId }) => {
         removePeer(socketId);
         setParticipants((prev) => prev.filter((p) => p.socketId !== socketId));
+        setParticipantMutedByHost((prev) => {
+          const next = { ...prev };
+          delete next[socketId];
+          return next;
+        });
       });
 
       socket.on("chat-message", (msg) => {
@@ -354,9 +393,17 @@ export default function MeetingRoom() {
         setChatMessages((prev) => [...prev, msg]);
       });
 
-      socket.on("admitted-to-meeting", ({ existingUsers, hostSocketId }) => {
+      socket.on("admitted-to-meeting", ({ existingUsers, hostSocketId, mutedByHost }) => {
         setWaitingForAdmission(false);
         if (hostSocketId != null) setLiveHostSocketId(hostSocketId);
+        if (mutedByHost) {
+          setParticipantMutedByHost(mutedByHost);
+          const selfId = selfSocketIdRef.current;
+          if (selfId && mutedByHost[selfId]) {
+            setHostMuted(true);
+            setMicOn(false);
+          }
+        }
         enterCallPeers(socket, joinName, existingUsers || []);
       });
 
@@ -369,8 +416,22 @@ export default function MeetingRoom() {
         if (hostSocketId != null) setLiveHostSocketId(hostSocketId);
       });
 
-      socket.on("host-force-mute", () => {
-        setMicOn(false);
+      socket.on("host-force-mute", ({ muted = true } = {}) => {
+        if (muted) {
+          setMicOn(false);
+          setHostMuted(true);
+          return;
+        }
+        setHostMuted(false);
+      });
+
+      socket.on("participant-muted-state", ({ socketId, muted }) => {
+        if (!socketId) return;
+        setParticipantMutedByHost((prev) => ({ ...prev, [socketId]: Boolean(muted) }));
+        if (socketId === selfSocketIdRef.current) {
+          setHostMuted(Boolean(muted));
+          if (muted) setMicOn(false);
+        }
       });
 
       socket.on("removed-from-meeting", ({ reason }) => {
@@ -417,6 +478,14 @@ export default function MeetingRoom() {
         setWbLines([]);
         setWbNotes([]);
         setWbImages([]);
+      });
+
+      socket.on("user-hand-state-changed", ({ socketId, raised }) => {
+        setRaisedHands((prev) => ({ ...prev, [socketId]: raised }));
+      });
+
+      socket.on("caption-broadcast", ({ socketId, displayName: dn, text, isFinal }) => {
+        showCaption(socketId, dn, text, isFinal);
       });
     },
     [createPeerConnection, enterCallPeers, isAuthenticated, navigate, removePeer, teardownCall]
@@ -480,6 +549,13 @@ export default function MeetingRoom() {
       selfSocketIdRef.current = response.socketId;
       setMySocketId(response.socketId);
       if (response.hostSocketId != null) setLiveHostSocketId(response.hostSocketId);
+      if (response.mutedByHost) {
+        setParticipantMutedByHost(response.mutedByHost);
+        if (response.socketId && response.mutedByHost[response.socketId]) {
+          setHostMuted(true);
+          setMicOn(false);
+        }
+      }
 
       if (response.waiting) {
         setWaitingForAdmission(true);
@@ -498,6 +574,155 @@ export default function MeetingRoom() {
     });
   };
 
+  const toggleRaiseHand = () => {
+    const next = !handRaised;
+    setHandRaised(next);
+    if (socketRef.current) {
+      socketRef.current.emit("raise-hand", { raised: next });
+    }
+  };
+
+  const showCaption = useCallback((socketId, senderName, text, isFinal) => {
+    setActiveCaptions((prev) => {
+      const existingIndex = prev.findIndex((c) => c.socketId === socketId);
+      const newCaption = {
+        id: socketId,
+        socketId,
+        displayName: senderName,
+        text,
+        isFinal,
+        ts: Date.now(),
+      };
+      let next;
+      if (existingIndex > -1) {
+        next = [...prev];
+        next[existingIndex] = newCaption;
+      } else {
+        next = [...prev, newCaption];
+      }
+      return next;
+    });
+
+    if (isFinal) {
+      setTimeout(() => {
+        setActiveCaptions((prev) =>
+          prev.filter((c) => c.socketId !== socketId || Date.now() - c.ts < 4500)
+        );
+      }, 5000);
+    }
+  }, []);
+
+  const initFilterProcessor = useCallback(async () => {
+    if (!filterProcessorRef.current) {
+      const { BackgroundFilterProcessor } = await import("../utils/backgroundFilter.js");
+      const processor = new BackgroundFilterProcessor();
+      await processor.init();
+      filterProcessorRef.current = processor;
+    }
+    return filterProcessorRef.current;
+  }, []);
+
+  useEffect(() => {
+    if (!inCall || !cameraStreamRef.current) return;
+
+    async function applyEffect() {
+      try {
+        const processor = await initFilterProcessor();
+        processor.start(cameraStreamRef.current, backgroundEffect, (processedTrack) => {
+          replaceVideoForPeers(processedTrack);
+          if (localStreamRef.current) {
+            const currentVideoTrack = localStreamRef.current.getVideoTracks()[0];
+            if (currentVideoTrack) localStreamRef.current.removeTrack(currentVideoTrack);
+            localStreamRef.current.addTrack(processedTrack);
+            setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+          }
+        });
+      } catch (err) {
+        console.error("Failed to apply background effect:", err);
+      }
+    }
+
+    applyEffect();
+
+    return () => {
+      if (filterProcessorRef.current) {
+        filterProcessorRef.current.stop();
+      }
+    };
+  }, [backgroundEffect, inCall, initFilterProcessor, replaceVideoForPeers]);
+
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    setCaptionsSupported(Boolean(SpeechRecognition));
+    if (!SpeechRecognition || !captionsActive || !inCall) {
+      if (recognitionRef.current) {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      }
+      return;
+    }
+
+    const rec = new SpeechRecognition();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = "en-US";
+
+    rec.onresult = (event) => {
+      let finalTranscript = "";
+      let interimTranscript = "";
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+
+      const transcript = finalTranscript || interimTranscript;
+      if (transcript.trim() && socketRef.current) {
+        socketRef.current.emit("caption-broadcast", {
+          text: transcript.trim(),
+          isFinal: !!finalTranscript,
+        });
+      }
+
+      if (transcript.trim()) {
+        showCaption(
+          selfSocketIdRef.current,
+          displayName.trim() || user?.name || "Guest",
+          transcript.trim(),
+          !!finalTranscript
+        );
+      }
+    };
+
+    rec.onend = () => {
+      if (captionsActive) {
+        try {
+          rec.start();
+        } catch (e) {
+          console.error("Failed to restart speech recognition:", e);
+        }
+      }
+    };
+
+    recognitionRef.current = rec;
+    try {
+      rec.start();
+    } catch (e) {
+      console.error("Failed to start speech recognition:", e);
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      }
+    };
+  }, [captionsActive, inCall, displayName, user?.name, showCaption]);
+
   useEffect(() => {
     if (!localStreamRef.current) return;
     localStreamRef.current.getAudioTracks().forEach((t) => {
@@ -506,10 +731,16 @@ export default function MeetingRoom() {
   }, [micOn]);
 
   useEffect(() => {
-    if (!localStreamRef.current) return;
-    localStreamRef.current.getVideoTracks().forEach((t) => {
-      t.enabled = camOn;
-    });
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getVideoTracks().forEach((t) => {
+        t.enabled = camOn;
+      });
+    }
+    if (localStreamRef.current) {
+      localStreamRef.current.getVideoTracks().forEach((t) => {
+        t.enabled = camOn;
+      });
+    }
   }, [camOn]);
 
   const leaveMeeting = () => {
@@ -579,7 +810,12 @@ export default function MeetingRoom() {
   };
 
   const hostMute = (targetId) => {
-    socketRef.current?.emit("host-mute-participant", { targetId: targetId }, () => {});
+    const nextMuted = !participantMutedByHost[targetId];
+    socketRef.current?.emit(
+      "host-set-participant-mute",
+      { targetId: targetId, muted: nextMuted },
+      () => {}
+    );
   };
 
   const hostRemove = (targetId) => {
@@ -750,6 +986,10 @@ export default function MeetingRoom() {
   ];
 
   const isLiveHost = Boolean(mySocketId && liveHostSocketId && mySocketId === liveHostSocketId);
+  const canRecordByPlan = user?.plan === "student" || user?.plan === "corporate";
+  const recordingDisabledReason = canRecordByPlan
+    ? ""
+    : "Recording requires Student or Corporate plan.";
 
   const mainTileId =
     spotlightId ||
@@ -757,33 +997,44 @@ export default function MeetingRoom() {
   const mainTile = mainTileId ? tiles.find((t) => t.id === mainTileId) : null;
   const stripTiles = layoutMode === "speaker" && mainTile ? tiles.filter((t) => t.id !== mainTile.id) : [];
 
-  const renderTile = (tile, { compact } = {}) => (
-    <div
-      key={`${tile.id}-${tile.stream?.id ?? "stream"}`}
-      className={`relative rounded-xl overflow-hidden bg-black border border-surface-border ${
-        compact ? "aspect-video w-40 shrink-0" : "aspect-video"
-      }`}
-    >
-      <video
-        autoPlay
-        playsInline
-        muted={tile.id === "local"}
-        ref={(el) => {
-          setVideoRef(tile.id, el);
-          if (el && tile.stream) el.srcObject = tile.stream;
-        }}
-        className="w-full h-full object-cover"
-      />
-      <button
-        type="button"
-        onClick={() => setSpotlightId(tile.id)}
-        className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white text-left hover:bg-black/80 max-w-[90%]"
-        title="Spotlight in speaker view"
+  const renderTile = (tile, { compact } = {}) => {
+    const isHandRaised = tile.id === "local" ? handRaised : !!raisedHands[tile.id];
+    return (
+      <div
+        key={`${tile.id}-${tile.stream?.id ?? "stream"}`}
+        className={`relative rounded-xl overflow-hidden bg-black border border-surface-border ${
+          compact ? "aspect-video w-40 shrink-0" : "aspect-video"
+        }`}
       >
-        {tile.label}
-      </button>
-    </div>
-  );
+        <video
+          autoPlay
+          playsInline
+          muted={tile.id === "local"}
+          ref={(el) => {
+            setVideoRef(tile.id, el);
+            if (el && tile.stream) el.srcObject = tile.stream;
+          }}
+          className="w-full h-full object-cover"
+        />
+        {isHandRaised && (
+          <div
+            className="absolute top-2 right-2 rounded-full bg-amber-500 text-white p-1.5 shadow-lg border border-amber-400 animate-bounce flex items-center justify-center z-10"
+            style={{ width: 32, height: 32 }}
+          >
+            <span style={{ fontSize: 16, lineHeight: 1 }}>✋</span>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => setSpotlightId(tile.id)}
+          className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white text-left hover:bg-black/80 max-w-[90%]"
+          title="Spotlight in speaker view"
+        >
+          {tile.label}
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-surface">
@@ -1006,7 +1257,16 @@ export default function MeetingRoom() {
                   <span className="w-px h-4 bg-surface-border mx-1 hidden sm:block" />
                   <button
                     type="button"
-                    onClick={recording ? stopRecording : startRecording}
+                    disabled={!canRecordByPlan}
+                    onClick={() => {
+                      if (!canRecordByPlan) {
+                        window.alert(recordingDisabledReason);
+                        return;
+                      }
+                      if (recording) stopRecording();
+                      else startRecording();
+                    }}
+                    title={recordingDisabledReason || "Record this meeting"}
                     className={`rounded-lg px-3 py-1 text-xs font-medium border ${
                       recording
                         ? "bg-red-600 border-red-500 text-white shadow-sm"
@@ -1024,7 +1284,7 @@ export default function MeetingRoom() {
                 </>
               )}
             </div>
-            <div className="flex-1 p-4 overflow-auto min-h-0">
+            <div className="flex-1 p-4 overflow-auto min-h-0 relative">
               {layoutMode === "grid" ? (
                 <div
                   className="grid gap-3 h-full"
@@ -1046,17 +1306,40 @@ export default function MeetingRoom() {
                   )}
                 </div>
               )}
+
+              {/* Live Captions Display Overlay */}
+              {activeCaptions.length > 0 && (
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 max-w-xl w-full flex flex-col gap-2 pointer-events-none">
+                  {activeCaptions.map((caption) => (
+                    <div
+                      key={caption.id}
+                      className="bg-black/85 text-white px-4 py-2.5 rounded-xl text-center shadow-lg border border-white/10 backdrop-blur-sm pointer-events-auto transition-all animate-fade-in"
+                    >
+                      <span className="font-bold text-sky-400 block text-xs mb-0.5">
+                        {caption.displayName}
+                      </span>
+                      <span className="text-sm font-medium">{caption.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <footer className="shrink-0 border-t border-surface-border bg-surface-elevated px-4 py-3 flex flex-wrap items-center justify-center gap-3">
               <button
                 type="button"
-                onClick={() => setMicOn((m) => !m)}
+                onClick={() => {
+                  if (hostMuted && !micOn) {
+                    window.alert("You are muted by the host.");
+                    return;
+                  }
+                  setMicOn((m) => !m);
+                }}
                 className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                   micOn ? "bg-white border border-surface-border text-slate-700 hover:bg-slate-50" : "bg-red-600 text-white"
                 }`}
               >
-                {micOn ? "Mute" : "Unmute"}
+                {micOn ? "Mute" : hostMuted ? "Muted by host" : "Unmute"}
               </button>
               <button
                 type="button"
@@ -1066,6 +1349,41 @@ export default function MeetingRoom() {
                 }`}
               >
                 {camOn ? "Camera off" : "Camera on"}
+              </button>
+              <div className="relative inline-block text-left">
+                <select
+                  value={backgroundEffect}
+                  onChange={(e) => setBackgroundEffect(e.target.value)}
+                  className="rounded-full px-4 py-2 text-sm font-medium bg-white border border-surface-border text-slate-700 hover:bg-slate-50 focus:outline-none transition-colors"
+                >
+                  <option value="none">🖼️ Background: None</option>
+                  <option value="blur">🖼️ Background: Blur</option>
+                  <option value="gradient">🖼️ Background: Gradient</option>
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={toggleRaiseHand}
+                className={`rounded-full px-4 py-2 text-sm font-medium border transition-colors ${
+                  handRaised
+                    ? "bg-amber-500 border-amber-400 text-white shadow-sm"
+                    : "bg-white border-surface-border text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                ✋ {handRaised ? "Lower Hand" : "Raise Hand"}
+              </button>
+              <button
+                type="button"
+                disabled={!captionsSupported}
+                onClick={() => setCaptionsActive((a) => !a)}
+                title={captionsSupported ? "Toggle live captions" : "Captions unsupported in this browser"}
+                className={`rounded-full px-4 py-2 text-sm font-medium border transition-colors ${
+                  captionsActive
+                    ? "bg-sky-600 border-sky-500 text-white shadow-sm"
+                    : "bg-white border-surface-border text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                💬 Captions {captionsSupported ? (captionsActive ? "On" : "Off") : "Unsupported"}
               </button>
               <button
                 type="button"
@@ -1242,6 +1560,8 @@ export default function MeetingRoom() {
                       {p.displayName}
                       {p.socketId === mySocketId ? " · you" : ""}
                       {p.socketId === liveHostSocketId ? " · host" : ""}
+                      {(p.socketId === mySocketId ? handRaised : !!raisedHands[p.socketId]) ? " ✋" : ""}
+                      {participantMutedByHost[p.socketId] ? " 🔇" : ""}
                     </span>
                     {isLiveHost && p.socketId !== mySocketId && (
                       <span className="flex flex-wrap gap-1 justify-end">
@@ -1257,7 +1577,7 @@ export default function MeetingRoom() {
                           onClick={() => hostMute(p.socketId)}
                           className="text-[10px] uppercase tracking-wide text-slate-400 hover:underline"
                         >
-                          Mute
+                          {participantMutedByHost[p.socketId] ? "Unmute" : "Mute"}
                         </button>
                         <button
                           type="button"

@@ -3,6 +3,10 @@ import { google } from "googleapis";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User.js";
 import { authRequired } from "../middleware/auth.js";
+import {
+  createGoogleCalendarEvent,
+  createGoogleCalendarEventPayload,
+} from "../utils/googleCalendar.js";
 
 const router = Router();
 
@@ -63,7 +67,7 @@ router.get("/callback", async (req, res) => {
   const clientOrigin = process.env.CLIENT_ORIGIN || "http://localhost:5173";
 
   if (!code || !state) {
-    return res.redirect(`${clientOrigin}/settings/calendar?error=missing_params`);
+    return res.redirect(`${clientOrigin}/calendar?error=missing_params`);
   }
 
   try {
@@ -80,7 +84,7 @@ router.get("/callback", async (req, res) => {
     
     const user = await User.findById(userId);
     if (!user) {
-      return res.redirect(`${clientOrigin}/settings/calendar?error=user_not_found`);
+      return res.redirect(`${clientOrigin}/calendar?error=user_not_found`);
     }
 
     user.googleAccessToken = tokens.access_token;
@@ -90,52 +94,37 @@ router.get("/callback", async (req, res) => {
     user.googleCalendarConnected = true;
     await user.save();
 
-    res.redirect(`${clientOrigin}/settings/calendar?success=true`);
+    res.redirect(`${clientOrigin}/calendar?success=true`);
   } catch (err) {
     console.error("OAuth callback error:", err);
-    res.redirect(`${clientOrigin}/settings/calendar?error=auth_failed`);
+    res.redirect(`${clientOrigin}/calendar?error=auth_failed`);
   }
 });
 
 router.post("/add-event", authRequired, async (req, res) => {
   try {
-    const { title, description, startTime, endTime, meetingLink } = req.body;
+    const { title, description, startTime, endTime, meetingLink, invitees = [] } = req.body;
     
     const user = await User.findById(req.userId);
     if (!user || !user.googleCalendarConnected) {
       return res.status(400).json({ message: "Google Calendar not connected" });
     }
 
-    const client = await getAuthorizedClient(user);
-    const calendar = google.calendar({ version: "v3", auth: client });
-
-    const event = {
-      summary: title || "Video Conference Meeting",
-      description: `${description || ""}\n\nJoin Meeting: ${meetingLink}`,
-      start: {
-        dateTime: startTime || new Date().toISOString(),
-        timeZone: "UTC",
-      },
-      end: {
-        dateTime: endTime || new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-        timeZone: "UTC",
-      },
-      reminders: {
-        useDefault: false,
-        overrides: [
-          { method: "popup", minutes: 10 },
-          { method: "email", minutes: 30 },
-        ],
-      },
-    };
-
-    const response = await calendar.events.insert({
-      calendarId: "primary",
-      resource: event,
-    });
+    const response = await createGoogleCalendarEvent(
+      user,
+      createGoogleCalendarEventPayload({
+        title,
+        description,
+        startTime,
+        endTime,
+        meetingLink,
+        invitees,
+      })
+    );
 
     res.json({
       message: "Event added to Google Calendar",
+      eventId: response.data.id,
       htmlLink: response.data.htmlLink,
     });
   } catch (err) {

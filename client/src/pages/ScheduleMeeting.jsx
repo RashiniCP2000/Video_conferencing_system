@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import api from "../api/client.js";
 import TopNav from "../components/TopNav.jsx";
-import { getUserStorageKey } from "../utils/userStorage.js";
 import Sidebar from "../components/Sidebar.jsx";
 
 /* ─── Icons ──────────────────────────────────────────────────────── */
@@ -87,7 +86,6 @@ export default function ScheduleMeeting() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
-  const meetingsStorageKey = getUserStorageKey(user, "meetnova_scheduled_meetings");
 
   /* ── nav / sidebar state ── */
   const [activeSubPage,   setActiveSubPage]     = useState(null);
@@ -117,18 +115,29 @@ export default function ScheduleMeeting() {
 
   useEffect(() => {
     if (editMeeting) {
-      setTopic(editMeeting.topic || "");
-      setDate(editMeeting.date || todayStr());
-      setTime(editMeeting.time || nextHalfHour());
-      setDurationHrs(String(editMeeting.durationHrs || "1"));
-      setDurationMins(String(editMeeting.durationMins || "0"));
+      const scheduledDate = editMeeting.scheduledFor ? new Date(editMeeting.scheduledFor) : null;
+      const scheduledDateStr = scheduledDate ? scheduledDate.toISOString().slice(0, 10) : todayStr();
+      const scheduledTimeStr = scheduledDate
+        ? `${String(scheduledDate.getHours()).padStart(2, "0")}:${String(
+            scheduledDate.getMinutes()
+          ).padStart(2, "0")}`
+        : nextHalfHour();
+      const durationMinutes = Number(editMeeting.durationMinutes || 60);
+      setTopic(editMeeting.title || editMeeting.topic || "");
+      setDate(editMeeting.date || scheduledDateStr);
+      setTime(editMeeting.time || scheduledTimeStr);
+      setDurationHrs(String(editMeeting.durationHrs || Math.floor(durationMinutes / 60)));
+      setDurationMins(String(editMeeting.durationMins || durationMinutes % 60));
       setTimezone(editMeeting.timezone || "Asia/Colombo");
       setRecurring(!!editMeeting.recurring);
       setDescription(editMeeting.description || "");
-      setInvitees(editMeeting.invitees || "");
-      setMeetingIdType(editMeeting.meetingId === "5435174501" ? "personal" : "auto");
-      setPasscodeEnabled(!!editMeeting.passcode);
+      setInvitees(Array.isArray(editMeeting.invitees) ? editMeeting.invitees.join(", ") : (editMeeting.invitees || ""));
+      setMeetingIdType("auto");
+      setPasscodeEnabled(Boolean(editMeeting.passcode || editMeeting.hasPasscode));
       setPasscode(editMeeting.passcode || generatePasscode());
+      if (typeof editMeeting.waitingRoomEnabled === "boolean") {
+        setWaitingRoom(editMeeting.waitingRoomEnabled);
+      }
     }
   }, [editMeeting]);
 
@@ -162,55 +171,68 @@ export default function ScheduleMeeting() {
 
 
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!topic.trim()) { alert("Please enter a meeting topic."); return; }
     setSaving(true);
+    setSaved(false);
 
-    const cleanMeetingId = editMeeting
-      ? editMeeting.meetingId
-      : (meetingIdType === "auto"
-        ? Array.from({ length: 11 }, () => Math.floor(Math.random() * 10)).join("")
-        : PERSONAL_ID.replace(/\s/g, ""));
-
-    const meetingData = {
-      topic,
-      date,
-      time,
-      timezone,
-      passcode: passcodeEnabled ? passcode : "",
-      meetingId: cleanMeetingId,
-      description,
-      invitees,
-      recurring,
-      durationHrs,
-      durationMins,
-    };
-
-    // Save to localStorage
     try {
-      const existing = JSON.parse(localStorage.getItem(meetingsStorageKey) || "[]");
-      if (editMeeting) {
-        const updated = existing.map((m) => m.meetingId === editMeeting.meetingId ? meetingData : m);
-        if (!existing.some((m) => m.meetingId === editMeeting.meetingId)) {
-          updated.push(meetingData);
-        }
-        localStorage.setItem(meetingsStorageKey, JSON.stringify(updated));
-      } else {
-        existing.push(meetingData);
-        localStorage.setItem(meetingsStorageKey, JSON.stringify(existing));
-      }
-    } catch (err) {
-      console.error("Error saving meeting:", err);
-    }
+      const payload = {
+        title: topic.trim(),
+        date,
+        time,
+        timezone,
+        durationMinutes: Number(durationHrs || 0) * 60 + Number(durationMins || 0),
+        description: description.trim(),
+        invitees: invitees
+          .split(",")
+          .map((v) => v.trim())
+          .filter(Boolean),
+        waitingRoomEnabled: waitingRoom,
+        passcode: passcodeEnabled ? passcode.trim() : "",
+      };
 
-    setTimeout(() => {
+      const response = editMeeting?.meetingCode
+        ? await api.put(`/meetings/scheduled/${editMeeting.meetingCode}`, payload)
+        : await api.post("/meetings/scheduled", payload);
+
+      const meeting = response.data?.meeting;
+      if (!meeting) {
+        throw new Error("Missing meeting in response");
+      }
+      const scheduleDate = meeting.scheduledFor ? new Date(meeting.scheduledFor) : null;
+      const detailsMeeting = {
+        meetingCode: meeting.meetingCode,
+        topic: meeting.title,
+        title: meeting.title,
+        date: scheduleDate ? scheduleDate.toISOString().slice(0, 10) : date,
+        time: scheduleDate
+          ? `${String(scheduleDate.getHours()).padStart(2, "0")}:${String(
+              scheduleDate.getMinutes()
+            ).padStart(2, "0")}`
+          : time,
+        timezone: meeting.timezone || timezone,
+        passcode: passcodeEnabled ? passcode : "",
+        meetingId: meeting.meetingCode,
+        description: meeting.description || "",
+        invitees: (meeting.invitees || []).join(", "),
+        recurring,
+        durationHrs,
+        durationMins,
+        waitingRoomEnabled: meeting.waitingRoomEnabled,
+        meetingLink: `${window.location.origin}/meet/${meeting.meetingCode}`,
+      };
+
       setSaving(false);
       setSaved(true);
       setTimeout(() => {
-        navigate("/meetings/details", { state: { meeting: meetingData } });
-      }, 1200);
-    }, 1000);
+        navigate("/meetings/details", { state: { meeting: detailsMeeting } });
+      }, 600);
+    } catch (err) {
+      setSaving(false);
+      alert(err.response?.data?.message || "Failed to save meeting.");
+    }
   };
 
   /* ════════════════════════════ RENDER ═══════════════════════════ */

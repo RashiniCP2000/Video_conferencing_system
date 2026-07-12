@@ -8,6 +8,7 @@ import { Plan } from "../models/Plan.js";
 import { ActivityLog } from "../models/ActivityLog.js";
 import { authRequired, adminRequired } from "../middleware/auth.js";
 import { logActivity, getClientIp } from "../utils/activityLogger.js";
+import { sendMail } from "../config/mailer.js";
 
 const router = Router();
 
@@ -20,39 +21,52 @@ async function seedDefaultPlans() {
       await Plan.insertMany([
         {
           planId: "free",
-          name: "Free Tier",
+          name: "Basic Plan",
           price: 0,
           interval: "month",
-          features: ["Standard 40-minute limit", "Up to 10 participants", "Screen sharing"],
+          features: [
+            "Unlimited meetings",
+            "Limited duration (free-tier style)",
+            "No recording",
+            "No cloud storage",
+            "Google Calendar integration",
+            "Standard features only",
+          ],
           isActive: true,
-          description: "Basic features for simple call hosting."
-        },
-        {
-          planId: "basic",
-          name: "Basic Plan",
-          price: 9.99,
-          interval: "month",
-          features: ["Unlimited call duration", "Up to 50 participants", "Cloud call recording (Local/S3)"],
-          isActive: true,
-          description: "Ideal plan for small teams and developers."
+          description: "Free basic plan."
         },
         {
           planId: "student",
-          name: "Student Tier",
-          price: 4.99,
-          interval: "month",
-          features: ["Unlimited call duration", "Up to 100 participants", "Cloud recording", "Google Calendar connected"],
+          name: "Student Plan",
+          price: 1500,
+          interval: "year",
+          features: [
+            "Meeting recording",
+            "20GB cloud storage",
+            "Download recordings",
+            "Delete recordings",
+            "Google Calendar integration",
+            "Permanent storage within 20GB limit",
+          ],
           isActive: true,
-          description: "Affordable plan with full features for verified students."
+          description: "One-time plan for verified students."
         },
         {
           planId: "corporate",
-          name: "Corporate Enterprise",
-          price: 19.99,
+          name: "Corporate Plan",
+          price: 2000,
           interval: "month",
-          features: ["Unlimited call duration", "Up to 250 participants", "Cloud recording", "Priority support & high storage limits"],
+          features: [
+            "Unlimited meetings",
+            "Recording enabled",
+            "High/unlimited storage",
+            "Full admin control",
+            "Google Calendar integration",
+            "All premium features",
+            "Recordings auto-deleted after 3 months",
+          ],
           isActive: true,
-          description: "Robust security and features for businesses."
+          description: "Corporate monthly plan. Yearly available at LKR 20,000."
         }
       ]);
       console.log("[Seeding] Populated 4 default plans successfully!");
@@ -528,8 +542,14 @@ router.post("/verifications/:id/:action", async (req, res) => {
     const updateFields = { verificationStatus };
 
     if (action === "approve") {
-      updateFields.plan = targetUser.verificationType === "student" ? "student" : "corporate";
-      updateFields.subscriptionStatus = "active";
+      if (targetUser.verificationType === "student") {
+        updateFields.plan = "student";
+        updateFields.subscriptionStatus = "active";
+      } else {
+        // Corporate users must complete payment after approval.
+        updateFields.plan = "free";
+        updateFields.subscriptionStatus = "inactive";
+      }
     } else {
       updateFields.plan = "free";
       updateFields.subscriptionStatus = "inactive";
@@ -544,6 +564,23 @@ router.post("/verifications/:id/:action", async (req, res) => {
     res.json({
       message: `Verification ${action === "approve" ? "approved" : "rejected"} successfully`,
       user: updatedUser,
+    });
+
+    await sendMail({
+      to: targetUser.email,
+      subject: `Your verification was ${action === "approve" ? "approved" : "rejected"}`,
+      html: `<p>Hello ${targetUser.name || "User"},</p>
+             <p>Your ${targetUser.verificationType || "account"} verification request was <strong>${action === "approve" ? "approved" : "rejected"}</strong>.</p>
+             ${
+               action === "approve" && targetUser.verificationType === "corporate"
+                 ? "<p>Your corporate verification is approved. Please complete subscription payment to activate the Corporate plan.</p>"
+                 : ""
+             }
+             ${
+               action === "approve" && targetUser.verificationType === "student"
+                 ? "<p>Your account has been upgraded to the Student plan.</p>"
+                 : ""
+             }`,
     });
   } catch (error) {
     console.error("Error reviewing verification request:", error);

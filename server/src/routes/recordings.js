@@ -9,6 +9,8 @@ import { User } from "../models/User.js";
 import { logActivity, getClientIp } from "../utils/activityLogger.js";
 
 const router = Router();
+const RECORDING_ENABLED_PLANS = new Set(["student", "corporate"]);
+const STUDENT_STORAGE_LIMIT_BYTES = 20 * 1024 * 1024 * 1024;
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -21,6 +23,28 @@ router.post("/", authRequired, upload.single("video"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: "No video file uploaded." });
+    }
+
+    const user = await User.findById(req.userId).select("name email plan");
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+    if (!RECORDING_ENABLED_PLANS.has(user.plan)) {
+      return res.status(403).json({
+        message: "Recording is available only on Student and Corporate plans.",
+      });
+    }
+    if (user.plan === "student") {
+      const usage = await Recording.aggregate([
+        { $match: { userId: user._id } },
+        { $group: { _id: null, total: { $sum: "$fileSize" } } },
+      ]);
+      const currentUsage = usage[0]?.total || 0;
+      if (currentUsage + req.file.size > STUDENT_STORAGE_LIMIT_BYTES) {
+        return res.status(400).json({
+          message: "Student storage limit reached (20GB). Delete old recordings to upload new ones.",
+        });
+      }
     }
 
     const { meetingCode, title, duration } = req.body;
@@ -48,9 +72,8 @@ router.post("/", authRequired, upload.single("video"), async (req, res) => {
     });
 
     // Notify the host via email
-    let host = null;
+    let host = user;
     try {
-      host = await User.findById(req.userId);
       if (host && host.email) {
         const recordingLink = recording.fileUrl;
         const emailHtml = recordingReadyEmail(recording.title, recordingLink);
@@ -87,6 +110,18 @@ router.post("/", authRequired, upload.single("video"), async (req, res) => {
 // GET /api/recordings - List user's recordings with search and date filters
 router.get("/", authRequired, async (req, res) => {
   try {
+    const user = await User.findById(req.userId).select("plan");
+    if (user?.plan === "corporate") {
+      const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      const expired = await Recording.find({ userId: req.userId, createdAt: { $lt: cutoff } });
+      for (const rec of expired) {
+        await deleteFile(rec.fileName, rec.storageType);
+      }
+      if (expired.length) {
+        await Recording.deleteMany({ _id: { $in: expired.map((r) => r._id) } });
+      }
+    }
+
     const { search, startDate, endDate } = req.query;
 
     const query = { userId: req.userId };
@@ -156,6 +191,69 @@ router.delete("/:id", authRequired, async (req, res) => {
   } catch (error) {
     console.error("[Recordings Route] Deletion failed:", error);
     res.status(500).json({ message: "Deletion failed", error: error.message });
+  }
+});
+
+// GET /api/recordings/storage-stats - Get storage usage and limits
+router.get("/storage-stats", authRequired, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select("plan");
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const usage = await Recording.aggregate([
+      { $match: { userId: user._id } },
+      { $group: { _id: null, total: { $sum: "$fileSize" } } },
+    ]);
+    const usedBytes = usage[0]?.total || 0;
+
+    let totalBytesLimit = 0;
+    let unlimited = false;
+
+    if (user.plan === "student") {
+      totalBytesLimit = STUDENT_STORAGE_LIMIT_BYTES;
+    } else if (user.plan === "corporate") {
+      totalBytesLimit = 100 * 1024 * 1024 * 1024; // 100 GB visual baseline
+      unlimited = true;
+    }
+
+    res.json({
+      usedBytes,
+      totalBytesLimit,
+      remainingBytes: Math.max(0, totalBytesLimit - usedBytes),
+      unlimited,
+      plan: user.plan,
+    });
+  } catch (err) {
+    console.error("[Recordings Route] Failed to fetch storage stats:", err);
+    res.status(500).json({ message: "Failed to fetch storage stats", error: err.message });
+  }
+});
+
+// PATCH /api/recordings/:id/rename - Rename a specific recording
+router.patch("/:id/rename", authRequired, async (req, res) => {
+  try {
+    const { title } = req.body;
+    if (!title || !title.trim()) {
+      return res.status(400).json({ message: "Title is required." });
+    }
+
+    const recording = await Recording.findOne({ _id: req.params.id, userId: req.userId });
+    if (!recording) {
+      return res.status(404).json({ message: "Recording not found or unauthorized." });
+    }
+
+    recording.title = title.trim();
+    await recording.save();
+
+    res.json({
+      message: "Recording renamed successfully.",
+      recording,
+    });
+  } catch (err) {
+    console.error("[Recordings Route] Rename failed:", err);
+    res.status(500).json({ message: "Rename failed", error: err.message });
   }
 });
 

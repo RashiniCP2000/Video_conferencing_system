@@ -96,6 +96,10 @@ export default function Recordings() {
   const [deletingId,       setDeletingId]       = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(null);
   const [error,            setError]            = useState("");
+  const [storageStats,     setStorageStats]     = useState(null);
+  const [showRenameModal,  setShowRenameModal]  = useState(null);
+  const [renameTitle,      setRenameTitle]      = useState("");
+  const [renamingId,       setRenamingId]       = useState(null);
 
   const initials = user?.name?.charAt(0).toUpperCase() || "U";
 
@@ -116,7 +120,19 @@ export default function Recordings() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchRecordings(); }, [startDate, endDate]);
+  const fetchStorageStats = async () => {
+    try {
+      const { data } = await api.get("/recordings/storage-stats");
+      setStorageStats(data);
+    } catch (err) {
+      console.error("Failed to fetch storage stats:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchRecordings();
+    fetchStorageStats();
+  }, [startDate, endDate]);
 
   const handleSearchSubmit = (e) => { e.preventDefault(); fetchRecordings(); };
   const handleClearFilters = () => {
@@ -126,6 +142,7 @@ export default function Recordings() {
       .then(({ data }) => setRecordings(data.recordings || []))
       .catch((err) => setError(err.response?.data?.message || "Failed to load recordings"))
       .finally(() => setLoading(false));
+    fetchStorageStats();
   };
 
   const handleDownload = (rec) => {
@@ -142,9 +159,33 @@ export default function Recordings() {
     try {
       await api.delete(`/recordings/${id}`);
       setRecordings((prev) => prev.filter((r) => r._id !== id));
+      fetchStorageStats();
     } catch (err) {
       alert("Failed to delete: " + (err.response?.data?.message || err.message));
     } finally { setDeletingId(null); }
+  };
+
+  const handleRenameClick = (rec) => {
+    setShowRenameModal(rec);
+    setRenameTitle(rec.title);
+  };
+
+  const confirmRename = async (e) => {
+    e.preventDefault();
+    if (!showRenameModal || !renameTitle.trim()) return;
+    const id = showRenameModal._id;
+    setRenamingId(id);
+    try {
+      const { data } = await api.patch(`/recordings/${id}/rename`, { title: renameTitle.trim() });
+      setRecordings((prev) =>
+        prev.map((r) => (r._id === id ? { ...r, title: data.recording.title } : r))
+      );
+      setShowRenameModal(null);
+    } catch (err) {
+      alert("Failed to rename: " + (err.response?.data?.message || err.message));
+    } finally {
+      setRenamingId(null);
+    }
   };
 
   /* ── format helpers ── */
@@ -178,6 +219,82 @@ export default function Recordings() {
             <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary, #1e293b)", margin: "0 0 4px" }}>Recording Library</h1>
             <p style={{ fontSize: 13, color: "var(--text-muted, #64748b)", margin: 0 }}>Manage and access all call recordings saved to your account</p>
           </div>
+
+          {/* Storage Dashboard Card */}
+          {storageStats && (
+            <div style={{
+              background: "var(--bg-card, #fff)",
+              border: "1px solid var(--border-color, #e2e8f0)",
+              borderRadius: 16,
+              padding: "20px 24px",
+              marginBottom: 24,
+              boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary, #1e293b)", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="var(--accent-blue, #1a6ff4)" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V10.125m16.5 0v3.75m-16.5-3.75v3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125v-3.75" />
+                    </svg>
+                    Cloud Storage Dashboard
+                  </h3>
+                  <p style={{ fontSize: 12, color: "var(--text-muted, #64748b)", margin: "4px 0 0" }}>
+                    {storageStats.plan === "corporate" 
+                      ? "Corporate Plan — Automatic 3-month cleanup is active" 
+                      : "Student Plan — Managed cloud storage"}
+                  </p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary, #1e293b)" }}>
+                    {formatFileSize(storageStats.usedBytes)}
+                  </span>
+                  <span style={{ fontSize: 13, color: "var(--text-muted, #64748b)" }}>
+                    {storageStats.unlimited ? " used / Unlimited" : ` of ${formatFileSize(storageStats.totalBytesLimit)} used`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              <div style={{
+                height: 8,
+                background: "var(--bg-primary, #f1f5f9)",
+                borderRadius: 4,
+                overflow: "hidden",
+                position: "relative"
+              }}>
+                <div style={{
+                  height: "100%",
+                  width: storageStats.unlimited 
+                    ? `${Math.min(100, (storageStats.usedBytes / (100 * 1024 * 1024 * 1024)) * 100)}%` 
+                    : `${Math.min(100, (storageStats.usedBytes / storageStats.totalBytesLimit) * 100)}%`,
+                  background: storageStats.unlimited 
+                    ? "linear-gradient(90deg, #10b981, #3b82f6)" 
+                    : (storageStats.usedBytes / storageStats.totalBytesLimit) > 0.9 
+                      ? "#ef4444" 
+                      : "linear-gradient(90deg, #3b82f6, #6366f1)",
+                  borderRadius: 4,
+                  transition: "width 0.4s ease-out"
+                }} />
+              </div>
+
+              {/* Stats Footer */}
+              {!storageStats.unlimited && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-muted, #64748b)" }}>
+                  <span>{((storageStats.usedBytes / storageStats.totalBytesLimit) * 100).toFixed(1)}% full</span>
+                  <span>{formatFileSize(storageStats.remainingBytes)} remaining</span>
+                </div>
+              )}
+              {storageStats.unlimited && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-muted, #64748b)" }}>
+                  <span>Unlimited storage enabled</span>
+                  <span>Auto-purge tasks check daily</span>
+                </div>
+              )}
+            </div>
+          )}
  
           {/* Filter Panel */}
           <div style={{ background: "var(--bg-card, #fff)", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: 16, padding: "18px 20px", marginBottom: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
@@ -276,9 +393,33 @@ export default function Recordings() {
                   </div>
                   {/* Info */}
                   <div style={{ padding: "16px 16px 14px", flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
-                    <div>
-                      <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary, #1e293b)", margin: "0 0 3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={rec.title}>{rec.title}</h3>
-                      <p style={{ fontSize: 12, color: "var(--text-muted, #94a3b8)", margin: 0 }}>{formatDate(rec.createdAt)}</p>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary, #1e293b)", margin: "0 0 3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={rec.title}>{rec.title}</h3>
+                        <p style={{ fontSize: 12, color: "var(--text-muted, #94a3b8)", margin: 0 }}>{formatDate(rec.createdAt)}</p>
+                      </div>
+                      <button 
+                        onClick={() => handleRenameClick(rec)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "var(--text-muted, #94a3b8)",
+                          padding: 4,
+                          borderRadius: 4,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          transition: "color 0.15s, background-color 0.15s"
+                        }}
+                        title="Rename recording"
+                        onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent-blue, #1a6ff4)"; e.currentTarget.style.backgroundColor = "var(--bg-primary, #f1f5f9)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted, #94a3b8)"; e.currentTarget.style.backgroundColor = "transparent"; }}
+                      >
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
+                        </svg>
+                      </button>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid var(--border-color, #f1f5f9)", paddingTop: 10, fontSize: 12, color: "var(--text-muted, #64748b)" }}>
                       <span>Size: <strong style={{ color: "var(--text-primary, #1e293b)" }}>{formatFileSize(rec.fileSize)}</strong></span>
@@ -324,6 +465,43 @@ export default function Recordings() {
                 Delete Permanently
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── RENAME MODAL ─── */}
+      {showRenameModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", padding: 16 }}>
+          <div style={{ background: "var(--bg-card, #fff)", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: 20, padding: 28, maxWidth: 400, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: "var(--text-primary, #1e293b)", margin: "0 0 16px" }}>Rename Recording</h3>
+            <form onSubmit={confirmRename}>
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted, #94a3b8)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Recording Title</label>
+                <input
+                  type="text"
+                  required
+                  value={renameTitle}
+                  onChange={(e) => setRenameTitle(e.target.value)}
+                  style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid var(--border-input, #e2e8f0)", borderRadius: 10, background: "var(--bg-input, #f8fafc)", fontSize: 13, color: "var(--input-text, #1e293b)", outline: "none", fontFamily: "inherit" }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowRenameModal(null)}
+                  style={{ background: "var(--btn-outline-bg, #fff)", border: "1px solid var(--btn-outline-border, #e2e8f0)", color: "var(--btn-outline-text, #475569)", borderRadius: 10, padding: "8px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={renamingId !== null || !renameTitle.trim()}
+                  style={{ background: "var(--accent-blue, #1a6ff4)", color: "#fff", border: "none", borderRadius: 10, padding: "8px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: (renamingId !== null || !renameTitle.trim()) ? 0.5 : 1 }}
+                >
+                  {renamingId !== null ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

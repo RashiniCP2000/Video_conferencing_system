@@ -5,7 +5,6 @@ import api from "../api/client.js";
 import UserProfileMenu from "../components/UserProfileMenu.jsx";
 import Sidebar from "../components/Sidebar.jsx";
 import TopNav from "../components/TopNav.jsx";
-import { getUserStorageKey } from "../utils/userStorage.js";
 
 /* ─── Icons ──────────────────────────────────────────────────────── */
 const ChevronDown = () => (
@@ -51,12 +50,12 @@ export default function Meetings() {
   const navigate = useNavigate();
   const { tab = "upcoming" } = useParams();
   const { user, logout } = useAuth();
-  const meetingsStorageKey = getUserStorageKey(user, "meetnova_scheduled_meetings");
 
   /* ── State ── */
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [myAccountOpen, setMyAccountOpen] = useState(false);
   const [meetings, setMeetings] = useState([]);
+  const [meetingsLoading, setMeetingsLoading] = useState(true);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -69,21 +68,23 @@ export default function Meetings() {
   threeDaysLater.setDate(today.getDate() + 3);
   const dateRangeStr = `${today.toLocaleDateString("en-GB").replace(/\//g, "-")} to ${threeDaysLater.toLocaleDateString("en-GB").replace(/\//g, "-")}`;
 
-  /* Load meetings from localStorage */
-  useEffect(() => {
+  const fetchMeetings = async () => {
+    setMeetingsLoading(true);
     try {
-      const saved = JSON.parse(localStorage.getItem(meetingsStorageKey) || "[]");
-      setMeetings(saved);
+      const { data } = await api.get("/meetings/scheduled");
+      setMeetings(data.meetings || []);
     } catch (err) {
       console.error("Error loading meetings:", err);
+      setMeetings([]);
+    } finally {
+      setMeetingsLoading(false);
     }
-  }, [meetingsStorageKey]);
-
-  /* Save/Sync helper */
-  const saveMeetings = (list) => {
-    setMeetings(list);
-    localStorage.setItem(meetingsStorageKey, JSON.stringify(list));
   };
+
+  /* Load meetings from backend */
+  useEffect(() => {
+    fetchMeetings();
+  }, []);
 
   const handleLogout = () => { logout(); navigate("/login", { replace: true }); };
 
@@ -111,10 +112,18 @@ export default function Meetings() {
     } catch { alert("Could not start meeting."); }
   };
 
-  const handleDeleteMeeting = (id) => {
+  const handleJoinScheduled = (meetingCode) => {
+    navigate(`/meet/${meetingCode}`);
+  };
+
+  const handleDeleteMeeting = async (meetingCode) => {
     if (window.confirm("Are you sure you want to delete this meeting?")) {
-      const updated = meetings.filter((m) => m.meetingId !== id);
-      saveMeetings(updated);
+      try {
+        await api.delete(`/meetings/scheduled/${meetingCode}`);
+        setMeetings((prev) => prev.filter((m) => m.meetingCode !== meetingCode));
+      } catch (err) {
+        alert(err.response?.data?.message || "Could not delete meeting.");
+      }
     }
   };
 
@@ -132,9 +141,8 @@ export default function Meetings() {
 
   // Divide meetings into upcoming and past
   const parseMeetingDateTime = (m) => {
-    if (!m.date) return new Date(0);
-    const timeStr = m.time || "00:00";
-    return new Date(`${m.date}T${timeStr}`);
+    if (!m.scheduledFor) return new Date(0);
+    return new Date(m.scheduledFor);
   };
 
   const now = new Date();
@@ -232,7 +240,11 @@ export default function Meetings() {
             {/* ── 1. UPCOMING TAB ── */}
             {tab === "upcoming" && (
               <div>
-                {upcomingList.length > 0 ? (
+                {meetingsLoading ? (
+                  <div style={st.emptyState}>
+                    <h2 style={st.emptyStateTitle}>Loading meetings...</h2>
+                  </div>
+                ) : upcomingList.length > 0 ? (
                   <div>
                     {/* Date filter simulation */}
                     <div style={st.filterRow}>
@@ -246,7 +258,9 @@ export default function Meetings() {
                     {/* Group meetings */}
                     {Object.entries(
                       upcomingList.reduce((acc, m) => {
-                        const dateName = formatGroupDate(m.date);
+                        const dateName = formatGroupDate(
+                          m.scheduledFor ? new Date(m.scheduledFor).toISOString().slice(0, 10) : ""
+                        );
                         if (!acc[dateName]) acc[dateName] = [];
                         acc[dateName].push(m);
                         return acc;
@@ -255,13 +269,20 @@ export default function Meetings() {
                       <div key={dateLabel} style={{ marginBottom: 28 }}>
                         <h3 style={st.dateGroupHeader}>{dateLabel}</h3>
                         {groupMeetings.map((m) => {
-                          const formattedMeetingId = m.meetingId.replace(/(\d{3})(\d{3,4})(\d{4})/, "$1 $2 $3");
+                          const scheduled = m.scheduledFor ? new Date(m.scheduledFor) : new Date();
+                          const timeStr = `${String(scheduled.getHours()).padStart(2, "0")}:${String(
+                            scheduled.getMinutes()
+                          ).padStart(2, "0")}`;
+                          const durationMins = Number(m.durationMinutes || 60);
+                          const durationHrs = Math.floor(durationMins / 60);
+                          const remMins = durationMins % 60;
+                          const formattedMeetingId = m.meetingCode;
                           return (
-                            <div key={m.meetingId} style={st.meetingCard}>
+                            <div key={m.meetingCode} style={st.meetingCard}>
                               {/* Left column: Time details */}
                               <div style={st.meetingCardTimeCol}>
                                 <div style={st.meetingTimeRange}>
-                                  {formatStartTime(m.time)} - {calculateEndTime(m.time, m.durationHrs, m.durationMins)}
+                                  {formatStartTime(timeStr)} - {calculateEndTime(timeStr, durationHrs, remMins)}
                                 </div>
                                 <div style={st.meetingTimeUpgrade}>
                                   Need more meeting time?<br />
@@ -275,7 +296,7 @@ export default function Meetings() {
                                   onClick={() => navigate("/meetings/details", { state: { meeting: m } })}
                                   style={st.meetingTopicLink}
                                 >
-                                  {m.topic}
+                                  {m.title}
                                 </button>
                                 <div style={st.meetingCardId}>
                                   Meeting ID: {formattedMeetingId}
@@ -284,10 +305,10 @@ export default function Meetings() {
 
                               {/* Right column: Action buttons */}
                               <div style={st.meetingCardActionsCol}>
-                                <button onClick={() => handleStartMeeting(m.topic)} style={st.meetingStartBtn}>Start</button>
-                                <button onClick={() => alert(`Chat room ID: ${m.meetingId}`)} style={st.meetingOutlineBtn}>Chat</button>
+                                <button onClick={() => handleJoinScheduled(m.meetingCode)} style={st.meetingStartBtn}>Start</button>
+                                <button onClick={() => alert(`Chat room code: ${m.meetingCode}`)} style={st.meetingOutlineBtn}>Chat</button>
                                 <button onClick={() => navigate("/schedule", { state: { editMeeting: m } })} style={st.meetingOutlineBtn}>Edit</button>
-                                <button onClick={() => handleDeleteMeeting(m.meetingId)} style={{ ...st.meetingOutlineBtn, color:"#e11d48", borderColor:"#fecaca" }}>Delete</button>
+                                <button onClick={() => handleDeleteMeeting(m.meetingCode)} style={{ ...st.meetingOutlineBtn, color:"#e11d48", borderColor:"#fecaca" }}>Delete</button>
                               </div>
                             </div>
                           );
@@ -322,31 +343,39 @@ export default function Meetings() {
             {/* ── 2. PREVIOUS TAB ── */}
             {tab === "previous" && (
               <div>
-                {previousList.length > 0 ? (
+                {meetingsLoading ? (
+                  <div style={st.emptyState}>
+                    <h2 style={st.emptyStateTitle}>Loading meetings...</h2>
+                  </div>
+                ) : previousList.length > 0 ? (
                   <div>
                     <h3 style={{ ...st.dateGroupHeader, marginBottom:16 }}>Past Meetings</h3>
                     {previousList.map((m) => {
-                      const formattedMeetingId = m.meetingId.replace(/(\d{3})(\d{3,4})(\d{4})/, "$1 $2 $3");
+                      const scheduled = m.scheduledFor ? new Date(m.scheduledFor) : new Date();
+                      const timeStr = `${String(scheduled.getHours()).padStart(2, "0")}:${String(
+                        scheduled.getMinutes()
+                      ).padStart(2, "0")}`;
+                      const formattedMeetingId = m.meetingCode;
                       return (
-                        <div key={m.meetingId} style={st.meetingCard}>
+                        <div key={m.meetingCode} style={st.meetingCard}>
                           <div style={st.meetingCardTimeCol}>
-                            <div style={st.meetingPastDate}>{m.date}</div>
-                            <div style={st.meetingPastTime}>{formatStartTime(m.time)}</div>
+                            <div style={st.meetingPastDate}>{scheduled.toISOString().slice(0, 10)}</div>
+                            <div style={st.meetingPastTime}>{formatStartTime(timeStr)}</div>
                           </div>
                           <div style={st.meetingCardTopicCol}>
                             <button
                               onClick={() => navigate("/meetings/details", { state: { meeting: m } })}
                               style={st.meetingTopicLink}
                             >
-                              {m.topic}
+                              {m.title}
                             </button>
                             <div style={st.meetingCardId}>
                               Meeting ID: {formattedMeetingId}
                             </div>
                           </div>
                           <div style={st.meetingCardActionsCol}>
-                            <button onClick={() => handleStartMeeting(m.topic)} style={st.meetingStartBtn}>Restart</button>
-                            <button onClick={() => handleDeleteMeeting(m.meetingId)} style={{ ...st.meetingOutlineBtn, color:"#e11d48", borderColor:"#fecaca" }}>Delete</button>
+                            <button onClick={() => handleStartMeeting(m.title)} style={st.meetingStartBtn}>Restart</button>
+                            <button onClick={() => handleDeleteMeeting(m.meetingCode)} style={{ ...st.meetingOutlineBtn, color:"#e11d48", borderColor:"#fecaca" }}>Delete</button>
                           </div>
                         </div>
                       );

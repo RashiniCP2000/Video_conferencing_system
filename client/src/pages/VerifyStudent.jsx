@@ -6,14 +6,15 @@ export default function VerifyStudent() {
   const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [universityEmail, setUniversityEmail] = useState("");
+  const [universityName, setUniversityName] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!file && !universityEmail) {
-      setError("Please provide either your university email or upload a student ID.");
+    if (!file || !universityEmail.trim() || !universityName.trim()) {
+      setError("University name, university email and ID card upload are required.");
       return;
     }
 
@@ -24,6 +25,7 @@ export default function VerifyStudent() {
     const formData = new FormData();
     if (file) formData.append("idCard", file);
     formData.append("universityEmail", universityEmail);
+    formData.append("universityName", universityName);
 
     try {
       await api.post("/verify/student", formData, {
@@ -50,6 +52,24 @@ export default function VerifyStudent() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-surface-elevated py-8 px-4 shadow-sm sm:rounded-lg sm:px-10 border border-surface-border">
           <form className="space-y-6" onSubmit={handleSubmit}>
+            <div>
+              <label htmlFor="universityName" className="block text-sm font-medium text-slate-700">
+                University Name
+              </label>
+              <div className="mt-1">
+                <input
+                  id="universityName"
+                  name="universityName"
+                  type="text"
+                  value={universityName}
+                  onChange={(e) => setUniversityName(e.target.value)}
+                  className="block w-full appearance-none rounded-md border border-surface-border bg-surface px-3 py-2 text-slate-900 placeholder-slate-400 focus:border-accent focus:outline-none focus:ring-accent sm:text-sm"
+                  placeholder="University of ..."
+                  required
+                />
+              </div>
+            </div>
+
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-slate-700">
                 University Email Address

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import api from "../api/client.js";
 import TopNav from "../components/TopNav.jsx";
@@ -44,6 +44,7 @@ const CATEGORIES = [
 
 export default function Calendar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
 
   /* ── nav / sidebar state ── */
@@ -52,6 +53,9 @@ export default function Calendar() {
   const [currentView, setCurrentView] = useState("month"); // "month" | "week" | "day"
   const [meetings, setMeetings] = useState([]);
   const [gcalConnected, setGcalConnected] = useState(false);
+  const [syncGoogleCalendar, setSyncGoogleCalendar] = useState(false);
+  const [loadingMeetings, setLoadingMeetings] = useState(true);
+  const [pageMessage, setPageMessage] = useState("");
 
   /* ── modals ── */
   const [showAddModal, setShowAddModal] = useState(false);
@@ -75,16 +79,55 @@ export default function Calendar() {
 
   // Load meetings and fetch Google Calendar connection status
   useEffect(() => {
-    loadLocalMeetings();
+    loadMeetings();
     fetchGoogleCalendarStatus();
   }, []);
 
-  const loadLocalMeetings = () => {
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("success") === "true") {
+      setPageMessage("Google Calendar connected successfully.");
+    } else if (params.get("error")) {
+      setPageMessage("Google Calendar connection failed.");
+    }
+  }, [location.search]);
+
+  const mapScheduledMeeting = (meeting) => {
+    const scheduled = meeting.scheduledFor ? new Date(meeting.scheduledFor) : null;
+    const date = scheduled ? scheduled.toISOString().slice(0, 10) : "";
+    const time = scheduled
+      ? `${String(scheduled.getHours()).padStart(2, "0")}:${String(scheduled.getMinutes()).padStart(2, "0")}`
+      : "09:00";
+    const durationMinutes = Number(meeting.durationMinutes || 60);
+    return {
+      meetingId: meeting.meetingCode,
+      meetingCode: meeting.meetingCode,
+      topic: meeting.title,
+      category: "team",
+      date,
+      time,
+      durationHrs: String(Math.floor(durationMinutes / 60)),
+      durationMins: String(durationMinutes % 60),
+      description: meeting.description || "",
+      invitees: Array.isArray(meeting.invitees) ? meeting.invitees.join(", ") : "",
+      passcode: meeting.hasPasscode ? "Protected" : "",
+      timezone: meeting.timezone || "UTC",
+      waitingRoomEnabled: meeting.waitingRoomEnabled !== false,
+      calendarEventLink: meeting.calendarEventLink || "",
+      meetingLink: meeting.meetingLink || `${window.location.origin}/meet/${meeting.meetingCode}`,
+    };
+  };
+
+  const loadMeetings = async () => {
     try {
-      const saved = JSON.parse(localStorage.getItem("meetnova_scheduled_meetings") || "[]");
-      setMeetings(saved);
+      setLoadingMeetings(true);
+      const { data } = await api.get("/meetings/scheduled");
+      setMeetings((data.meetings || []).map(mapScheduledMeeting));
     } catch (err) {
       console.error("Failed to load meetings:", err);
+      setPageMessage("Failed to load scheduled meetings.");
+    } finally {
+      setLoadingMeetings(false);
     }
   };
 
@@ -97,9 +140,25 @@ export default function Calendar() {
     }
   };
 
-  const saveMeetings = (list) => {
-    setMeetings(list);
-    localStorage.setItem("meetnova_scheduled_meetings", JSON.stringify(list));
+  const handleConnectCalendar = async () => {
+    try {
+      const { data } = await api.get("/calendar/auth-url");
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      setPageMessage(err.response?.data?.message || "Failed to start Google Calendar connection.");
+    }
+  };
+
+  const handleDisconnectCalendar = async () => {
+    try {
+      await api.post("/calendar/disconnect");
+      setGcalConnected(false);
+      setPageMessage("Google Calendar disconnected.");
+    } catch (err) {
+      setPageMessage(err.response?.data?.message || "Failed to disconnect Google Calendar.");
+    }
   };
 
 
@@ -143,6 +202,7 @@ export default function Calendar() {
     setFormDescription("");
     setFormInvitees("");
     setFormPasscode(Math.random().toString(36).slice(2, 8).toUpperCase());
+    setSyncGoogleCalendar(gcalConnected);
     setIsEditing(false);
     setShowAddModal(true);
   };
@@ -158,45 +218,63 @@ export default function Calendar() {
     setFormDescription(event.description || "");
     setFormInvitees(event.invitees || "");
     setFormPasscode(event.passcode || "");
+    setSyncGoogleCalendar(Boolean(event.calendarEventLink) || gcalConnected);
     setIsEditing(true);
     setShowViewModal(false);
     setShowAddModal(true);
   };
 
-  const handleSaveEvent = (e) => {
+  const handleSaveEvent = async (e) => {
     e.preventDefault();
     if (!formTopic.trim()) return;
 
-    const newMeeting = {
-      meetingId: isEditing && selectedEvent ? selectedEvent.meetingId : Array.from({ length: 11 }, () => Math.floor(Math.random() * 10)).join(""),
-      topic: formTopic,
-      category: formCategory,
-      date: formDate,
-      time: formTime,
-      durationHrs: formDurationHrs,
-      durationMins: formDurationMins,
-      description: formDescription,
-      invitees: formInvitees,
-      passcode: formPasscode,
-      timezone: "Asia/Colombo",
-    };
+    setPageMessage("");
+    try {
+      const payload = {
+        title: formTopic.trim(),
+        date: formDate,
+        time: formTime,
+        timezone: "Asia/Colombo",
+        durationMinutes: Number(formDurationHrs || 0) * 60 + Number(formDurationMins || 0),
+        description: formDescription.trim(),
+        invitees: formInvitees
+          .split(",")
+          .map((v) => v.trim())
+          .filter(Boolean),
+        waitingRoomEnabled: true,
+        passcode: formPasscode.trim(),
+        syncGoogleCalendar,
+      };
 
-    let updatedList;
-    if (isEditing && selectedEvent) {
-      updatedList = meetings.map((m) => m.meetingId === selectedEvent.meetingId ? newMeeting : m);
-    } else {
-      updatedList = [...meetings, newMeeting];
+      if (isEditing && selectedEvent?.meetingId) {
+        await api.put(`/meetings/scheduled/${selectedEvent.meetingId}`, payload);
+      } else {
+        await api.post("/meetings/scheduled", payload);
+      }
+
+      await loadMeetings();
+      setShowAddModal(false);
+      setShowViewModal(false);
+      setPageMessage(syncGoogleCalendar && gcalConnected
+        ? "Meeting saved and synced to Google Calendar."
+        : "Meeting saved successfully.");
+    } catch (err) {
+      setPageMessage(err.response?.data?.message || "Failed to save meeting.");
     }
-
-    saveMeetings(updatedList);
-    setShowAddModal(false);
   };
 
-  const handleDeleteEvent = (id) => {
-    if (window.confirm("Are you sure you want to delete this meeting?")) {
-      const updated = meetings.filter((m) => m.meetingId !== id);
-      saveMeetings(updated);
+  const handleDeleteEvent = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this meeting?")) {
+      return;
+    }
+
+    try {
+      await api.delete(`/meetings/scheduled/${id}`);
+      await loadMeetings();
       setShowViewModal(false);
+      setPageMessage("Meeting canceled and calendar sync updated.");
+    } catch (err) {
+      setPageMessage(err.response?.data?.message || "Failed to delete meeting.");
     }
   };
 
@@ -317,6 +395,19 @@ export default function Calendar() {
             
             {/* Left Main Calendar Panel */}
             <div style={st.calendarContainer}>
+              {pageMessage && (
+                <div style={{
+                  marginBottom: 16,
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  background: "rgba(59, 130, 246, 0.08)",
+                  color: "#1d4ed8",
+                  fontSize: 13,
+                  fontWeight: 600,
+                }}>
+                  {pageMessage}
+                </div>
+              )}
               
               {/* Calendar Toolbar */}
               <div style={st.toolbar}>
@@ -532,11 +623,14 @@ export default function Calendar() {
                   </span>
                 </div>
                 <button
-                  onClick={() => navigate("/settings/calendar")}
+                  onClick={gcalConnected ? handleDisconnectCalendar : handleConnectCalendar}
                   style={st.syncSettingsBtn}
                 >
-                  Manage Sync Settings
+                  {gcalConnected ? "Disconnect Google Calendar" : "Connect Google Calendar"}
                 </button>
+                <div style={{ marginTop: 10, fontSize: 12, color: "var(--text-muted, #64748b)", lineHeight: 1.5 }}>
+                  When synced, meetings are added with email + popup reminders and participants are invited automatically.
+                </div>
               </div>
 
               {/* Stats Card */}
@@ -571,7 +665,9 @@ export default function Calendar() {
               <div style={st.sideCard}>
                 <h3 style={st.sideCardTitle}>Upcoming Reminders</h3>
                 <div style={st.upcomingWrapper}>
-                  {upcomingList.length > 0 ? (
+                  {loadingMeetings ? (
+                    <span style={{ fontSize: 13, color: "var(--text-muted, #64748b)" }}>Loading scheduled meetings...</span>
+                  ) : upcomingList.length > 0 ? (
                     upcomingList.slice(0, 3).map((m) => {
                       const theme = getCategoryTheme(m.category);
                       return (
@@ -638,6 +734,18 @@ export default function Calendar() {
                 <span style={st.detailsValue}>{selectedEvent.meetingId}</span>
               </div>
               <div style={st.detailsRow}>
+                <span style={st.detailsLabel}>Google Calendar</span>
+                <span style={st.detailsValue}>
+                  {selectedEvent.calendarEventLink ? (
+                    <a href={selectedEvent.calendarEventLink} target="_blank" rel="noreferrer" style={{ color: "#1a6ff4", fontWeight: 700 }}>
+                      Synced event
+                    </a>
+                  ) : (
+                    "Not synced"
+                  )}
+                </span>
+              </div>
+              <div style={st.detailsRow}>
                 <span style={st.detailsLabel}>Passcode</span>
                 <span style={st.detailsValue}>{selectedEvent.passcode || "—"}</span>
               </div>
@@ -645,7 +753,7 @@ export default function Calendar() {
 
             <div style={st.modalActions}>
               <button
-                onClick={() => navigate(`/meet/${selectedEvent.meetingId.replace(/\s/g, "")}`)}
+                onClick={() => navigate(selectedEvent.meetingLink || `/meet/${selectedEvent.meetingId.replace(/\s/g, "")}`)}
                 style={st.joinBtn}
               >
                 Join Meeting
@@ -780,6 +888,18 @@ export default function Calendar() {
                   placeholder="Security passcode..."
                   style={st.formInput}
                 />
+              </div>
+
+              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "var(--text-secondary, #334155)" }}>
+                <input
+                  type="checkbox"
+                  checked={syncGoogleCalendar}
+                  onChange={(e) => setSyncGoogleCalendar(e.target.checked)}
+                />
+                Sync this meeting with Google Calendar
+              </label>
+              <div style={{ fontSize: 12, color: "var(--text-muted, #64748b)", lineHeight: 1.5 }}>
+                Google Calendar reminders are added automatically (popup 10 min, email 30 min) when sync is enabled.
               </div>
 
               <div style={st.modalActions}>

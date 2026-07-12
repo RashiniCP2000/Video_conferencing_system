@@ -4,30 +4,28 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { ArrowLeftIcon, CheckIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
 
 const PLAN_DETAILS = {
-  basic: {
-    name: "Basic Plan",
-    priceMonthly: 9.99,
-    priceYearly: 79.99,
-    description: "Perfect for individuals and small teams.",
-    features: [
-      "Unlimited 1-on-1 meetings",
-      "Up to 50 participants per meeting",
-      "Group chat & screen sharing",
-      "HD video and audio",
-      "Basic support",
-    ],
-  },
   student: {
     name: "Student Plan",
-    priceMonthly: 4.99,
-    priceYearly: 39.99,
-    description: "Specially priced for students at verified institutions.",
+    priceOneTime: 1500,
+    description: "One-time payment with student verification.",
     features: [
-      "All Basic features",
-      "Up to 100 participants",
-      "Cloud recording (5GB)",
-      "Student community access",
-      "Priority support",
+      "Meeting recording",
+      "20GB cloud storage",
+      "Download and delete recordings",
+      "Google Calendar integration",
+    ],
+  },
+  corporate: {
+    name: "Corporate Plan",
+    priceMonthly: 2000,
+    priceYearly: 20000,
+    description: "Business subscription with monthly/yearly billing.",
+    features: [
+      "Unlimited meetings",
+      "Recording enabled",
+      "Full admin controls",
+      "Premium features unlocked",
+      "Recording retention: 3 months",
     ],
   },
 };
@@ -49,10 +47,19 @@ export default function ConfirmUpgrade() {
   if (!plan || !PLAN_DETAILS[plan]) return null;
 
   const details = PLAN_DETAILS[plan];
-  const originalPrice = interval === "yearly" ? details.priceYearly : details.priceMonthly;
-  const cycleLabel = interval === "yearly" ? "Yearly Billing" : "Monthly Billing";
-  const perMonthLabel = interval === "yearly" ? `/month (billed annually)` : "/month";
-  const monthlyPriceStr = interval === "yearly" ? (details.priceYearly / 12).toFixed(2) : details.priceMonthly.toFixed(2);
+  const isStudent = plan === "student";
+  const originalPrice = isStudent
+    ? details.priceOneTime
+    : interval === "yearly"
+      ? details.priceYearly
+      : details.priceMonthly;
+  const cycleLabel = isStudent ? "One-time Payment" : interval === "yearly" ? "Yearly Billing" : "Monthly Billing";
+  const perMonthLabel = isStudent ? "" : interval === "yearly" ? `/month (billed annually)` : "/month";
+  const monthlyPriceStr = isStudent
+    ? details.priceOneTime.toFixed(2)
+    : interval === "yearly"
+      ? (details.priceYearly / 12).toFixed(2)
+      : details.priceMonthly.toFixed(2);
 
   const handleConfirm = () => {
     navigate(`/checkout/billing?plan=${plan}&interval=${interval}`);
@@ -105,11 +112,11 @@ export default function ConfirmUpgrade() {
         <div className="border-t border-slate-100 pt-6 mb-8">
           <div className="flex justify-between items-baseline mb-2">
             <span className="text-slate-500 text-sm">Selected Plan Rate</span>
-            <span className="text-xl font-bold text-slate-800">${monthlyPriceStr}{perMonthLabel}</span>
+            <span className="text-xl font-bold text-slate-800">LKR {monthlyPriceStr}{perMonthLabel}</span>
           </div>
           <div className="flex justify-between items-baseline border-t border-slate-100 pt-4 mt-4">
             <span className="text-slate-600 font-semibold">Total to Charge Today</span>
-            <span className="text-3xl font-extrabold text-slate-900">${originalPrice.toFixed(2)}</span>
+            <span className="text-3xl font-extrabold text-slate-900">LKR {originalPrice.toFixed(2)}</span>
           </div>
         </div>
 

@@ -15,11 +15,11 @@ const FAQ_ITEMS = [
   },
   {
     question: "What payment methods are supported?",
-    answer: "We accept all major credit and debit cards. All payment transactions are processed securely via Stripe checkout or our secure simulation sandbox.",
+    answer: "We support card payments and online banking through the configured Sri Lankan payment flow.",
   },
   {
     question: "Is there a discount for annual billing?",
-    answer: "Yes! By switching to annual billing, you save 20% compared to the monthly plan. The price is billed in one yearly installment.",
+    answer: "Corporate users can choose LKR 2,000 monthly or LKR 20,000 yearly billing.",
   },
 ];
 
@@ -54,31 +54,33 @@ export default function Pricing() {
     {
       name: "Basic",
       id: "tier-basic",
-      priceMonthly: isAnnual ? "$7.99" : "$9.99",
-      priceBilled: isAnnual ? "$95.88 billed annually" : "$9.99 billed monthly",
-      description: "Perfect for individuals and small teams.",
+      priceMonthly: "FREE",
+      priceBilled: "LKR 0",
+      description: "Standard free plan for everyday meetings.",
       features: [
-        "Unlimited 1-on-1 meetings",
-        "Up to 50 participants per meeting",
-        "Group chat & screen sharing",
-        "HD video and audio",
-        "Basic support",
+        "Unlimited meetings",
+        "Limited duration (free-tier style)",
+        "No recording",
+        "No cloud storage",
+        "Google Calendar integration",
+        "Standard features only",
       ],
       featured: false,
-      buttonText: "Get started",
+      buttonText: "Use Basic",
     },
     {
       name: "Student",
       id: "tier-student",
-      priceMonthly: isAnnual ? "$3.99" : "$4.99",
-      priceBilled: isAnnual ? "$47.88 billed annually" : "$4.99 billed monthly",
-      description: "Specially priced for students at verified institutions.",
+      priceMonthly: "LKR 1,500",
+      priceBilled: "One-time payment",
+      description: "Verified student plan with recording and managed storage.",
       features: [
-        "All Basic features",
-        "Up to 100 participants",
-        "Cloud recording (5GB)",
-        "Student community access",
-        "Priority support",
+        "Meeting recording enabled",
+        "20GB cloud storage cap",
+        "Download recordings",
+        "Delete recordings",
+        "Google Calendar integration",
+        "Permanent storage within 20GB limit",
       ],
       featured: true,
       buttonText: "Verify & Subscribe",
@@ -86,19 +88,20 @@ export default function Pricing() {
     {
       name: "Corporate",
       id: "tier-corporate",
-      priceMonthly: "Custom",
-      priceBilled: "Contact us for pricing details",
-      description: "Enterprise-grade features for your company.",
+      priceMonthly: isAnnual ? "LKR 20,000" : "LKR 2,000",
+      priceBilled: isAnnual ? "Yearly billing" : "Monthly billing",
+      description: "Business plan with admin controls and premium capabilities.",
       features: [
-        "All Basic features",
-        "Unlimited participants",
-        "Admin dashboard & usage stats",
-        "SSO integration",
-        "Dedicated account manager",
-        "Custom branding",
+        "Unlimited meetings",
+        "Recording enabled",
+        "High / unlimited storage",
+        "Full admin control",
+        "Google Calendar integration",
+        "All premium features unlocked",
+        "Recording auto-delete after 3 months",
       ],
       featured: false,
-      buttonText: "Contact Sales",
+      buttonText: "Verify & Subscribe",
     },
   ];
 
@@ -108,6 +111,10 @@ export default function Pricing() {
     // If the user already has this plan, do nothing
     if (user?.plan === plan) return;
 
+    if (plan === "basic") {
+      navigate("/");
+      return;
+    }
     if (plan === "corporate") {
       navigate("/verify/corporate");
       return;
@@ -120,7 +127,11 @@ export default function Pricing() {
       }
     }
 
-    navigate(`/confirm-upgrade?plan=${plan}&interval=${isAnnual ? "yearly" : "monthly"}`);
+    if (plan === "student") {
+      navigate("/confirm-upgrade?plan=student&interval=one_time");
+      return;
+    }
+    navigate(`/confirm-upgrade?plan=corporate&interval=${isAnnual ? "yearly" : "monthly"}`);
   };
 
   const toggleFaq = (index) => {
@@ -143,9 +154,9 @@ export default function Pricing() {
           </p>
         </div>
 
-        {/* Toggle Switch */}
+        {/* Corporate Billing Toggle */}
         <div className="mt-12 flex justify-center items-center gap-x-4">
-          <span className={`text-sm ${!isAnnual ? "text-slate-800 font-semibold" : "text-slate-400"}`}>Monthly</span>
+          <span className={`text-sm ${!isAnnual ? "text-slate-800 font-semibold" : "text-slate-400"}`}>Corporate Monthly</span>
           <button
             onClick={() => setIsAnnual(!isAnnual)}
             className="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-accent"
@@ -157,10 +168,7 @@ export default function Pricing() {
             />
           </button>
           <span className={`text-sm flex items-center gap-1.5 ${isAnnual ? "text-slate-800 font-semibold" : "text-slate-400"}`}>
-            Yearly
-            <span className="inline-flex items-center rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-600 ring-1 ring-inset ring-green-500/20">
-              Save 20%
-            </span>
+            Corporate Yearly
           </span>
         </div>
 
@@ -206,7 +214,7 @@ export default function Pricing() {
                   <div className="mt-6">
                     <p className="flex items-baseline gap-x-1">
                       <span className="text-4xl font-extrabold tracking-tight text-slate-900">{tier.priceMonthly}</span>
-                      {tier.priceMonthly !== "Custom" && (
+                      {tier.name === "Corporate" && !isAnnual && (
                         <span className="text-sm font-semibold leading-6 text-slate-400">/month</span>
                       )}
                     </p>

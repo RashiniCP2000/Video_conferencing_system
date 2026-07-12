@@ -66,59 +66,20 @@ export default function Profile() {
   };
 
   const handleDownloadInvoice = (invoice) => {
-    const printWindow = window.open("", "_blank");
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Invoice - MeetNova</title>
-          <style>
-            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; }
-            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #eee; padding-bottom: 20px; }
-            .logo { font-size: 24px; font-weight: bold; color: #1a6ff4; }
-            .details { margin: 40px 0; line-height: 1.6; }
-            .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            .table th, .table td { border: 1px solid #eee; padding: 12px; text-align: left; }
-            .table th { background: #f9f9f9; }
-            .footer { border-top: 2px solid #eee; margin-top: 50px; padding-top: 20px; font-size: 12px; color: #888; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="logo">MeetNova Inc.</div>
-            <div><strong>Invoice ID:</strong> INV-\${invoice._id.substring(0, 8).toUpperCase()}</div>
-          </div>
-          <div class="details">
-            <strong>Billed To:</strong><br />
-            Name: \${user?.name}<br />
-            Email: \${user?.email}<br />
-            Date: \${new Date(invoice.createdAt).toLocaleDateString()}
-          </div>
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th>Cycle</th>
-                <th>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>MeetNova \${invoice.plan.toUpperCase()} Premium License Upgrade</td>
-                <td>Active Period Ending \${new Date(invoice.currentPeriodEnd).toLocaleDateString()}</td>
-                <td>\${invoice.plan === "student" ? "$4.99" : "$9.99"}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="footer">
-            Thank you for your business. For support, contact billing@meetnova.com
-          </div>
-          <script>
-            window.onload = function() { window.print(); }
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    api.get(`/payments/invoices/${invoice._id}/download`, { responseType: "blob" })
+      .then((response) => {
+        const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = `invoice-${invoice.invoiceNumber || invoice._id}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(blobUrl);
+      })
+      .catch((err) => {
+        alert(err.response?.data?.message || "Failed to download invoice.");
+      });
   };
 
   /* ── Personal Info states ── */
@@ -466,7 +427,7 @@ export default function Profile() {
                         <tbody>
                           {billingHistory.map((invoice) => (
                             <tr key={invoice._id} style={{ borderBottom: "1px solid var(--border-color, #e2e8f0)" }}>
-                              <td style={{ padding: "10px 0", fontFamily: "monospace" }}>INV-{invoice._id.substring(0, 8).toUpperCase()}</td>
+                              <td style={{ padding: "10px 0", fontFamily: "monospace" }}>{invoice.invoiceNumber || `INV-${invoice._id.substring(0, 8).toUpperCase()}`}</td>
                               <td style={{ padding: "10px 0" }}>{new Date(invoice.createdAt).toLocaleDateString()}</td>
                               <td style={{ padding: "10px 0", textTransform: "capitalize" }}>{invoice.plan}</td>
                               <td style={{ padding: "10px 0" }}>

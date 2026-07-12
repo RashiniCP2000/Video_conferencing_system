@@ -4,15 +4,15 @@ import { CreditCardIcon, ShieldCheckIcon, ArrowLeftIcon, ArrowPathIcon } from "@
 import api from "../api/client.js";
 
 const PLAN_INFO = {
-  basic: {
-    name: "Basic Plan",
-    monthlyPrice: 9.99,
-    yearlyPrice: 79.99,
-  },
   student: {
     name: "Student Plan",
-    monthlyPrice: 4.99,
-    yearlyPrice: 39.99,
+    monthlyPrice: 1500,
+    yearlyPrice: 1500,
+  },
+  corporate: {
+    name: "Corporate Plan",
+    monthlyPrice: 2000,
+    yearlyPrice: 20000,
   },
 };
 
@@ -125,7 +125,7 @@ export default function MockCheckout() {
 
   const selectedPlan = PLAN_INFO[plan] || { name: "Premium Plan", monthlyPrice: 0, yearlyPrice: 0 };
   const price = interval === "yearly" ? selectedPlan.yearlyPrice : selectedPlan.monthlyPrice;
-  const billingPeriod = interval === "yearly" ? "/year" : "/month";
+  const billingPeriod = plan === "student" ? " (one-time)" : interval === "yearly" ? "/year" : "/month";
 
   return (
     <div className="min-h-screen bg-[#0f1419] text-white py-12 px-4 sm:px-6 lg:px-8 flex flex-col justify-center">
@@ -157,7 +157,7 @@ export default function MockCheckout() {
               <div className="flex justify-between items-baseline">
                 <span className="text-slate-400 text-sm">Total Due</span>
                 <span className="text-3xl font-bold">
-                  ${price}
+                  LKR {price}
                   <span className="text-xs text-slate-400 font-normal">{billingPeriod}</span>
                 </span>
               </div>
@@ -273,7 +273,7 @@ export default function MockCheckout() {
                   <ArrowPathIcon className="h-5 w-5 mr-2 animate-spin" /> Processing Payment...
                 </>
               ) : (
-                `Pay $${price} & Upgrade`
+                `Pay LKR ${price} & Upgrade`
               )}
             </button>
           </form>

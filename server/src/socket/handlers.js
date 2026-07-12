@@ -9,6 +9,8 @@ const meetingSockets = new Map();
 const waitingQueues = new Map();
 /** Current host socket id per meeting (runtime; supports transfer). */
 const hostSocketByRoom = new Map();
+/** Host-enforced mute state per room: meetingCode -> Map(socketId -> boolean). */
+const mutedStateByRoom = new Map();
 /** Active whiteboard state per meeting room key (runtime: lines, notes, images) */
 const meetingWhiteboards = new Map();
 
@@ -29,6 +31,8 @@ function addToMainRoom(socket, meetingCodeUpper, displayName, io) {
 
   if (!meetingSockets.has(rKey)) meetingSockets.set(rKey, new Map());
   meetingSockets.get(rKey).set(socket.id, displayName);
+  if (!mutedStateByRoom.has(rKey)) mutedStateByRoom.set(rKey, new Map());
+  mutedStateByRoom.get(rKey).set(socket.id, false);
 
   logActivity({
     userId: socket.userId || null,
@@ -53,6 +57,7 @@ function addToMainRoom(socket, meetingCodeUpper, displayName, io) {
   return {
     existingUsers: existing,
     hostSocketId: hostSocketByRoom.get(rKey) ?? null,
+    mutedByHost: Object.fromEntries(mutedStateByRoom.get(rKey)?.entries() || []),
   };
 }
 
@@ -96,6 +101,7 @@ function admitWaitingUser(io, meetingCodeUpper, targetId) {
   target.emit("admitted-to-meeting", {
     existingUsers,
     hostSocketId,
+    mutedByHost: Object.fromEntries(mutedStateByRoom.get(rKey)?.entries() || []),
     whiteboard: meetingWhiteboards.get(rKey) || { lines: [], notes: [], images: [] }
   });
   return true;
@@ -304,8 +310,34 @@ export function setupSocket(io) {
         ack?.({ ok: false, error: "Not in call" });
         return;
       }
+      if (!mutedStateByRoom.has(rKey)) mutedStateByRoom.set(rKey, new Map());
+      mutedStateByRoom.get(rKey).set(targetId, true);
       io.to(targetId).emit("host-force-mute");
+      io.to(rKey).emit("participant-muted-state", { socketId: targetId, muted: true });
       ack?.({ ok: true });
+    });
+
+    socket.on("host-set-participant-mute", ({ targetId, muted }, ack) => {
+      if (!socket.meetingCode || !targetId || typeof muted !== "boolean") {
+        ack?.({ ok: false, error: "Invalid" });
+        return;
+      }
+      const rKey = roomKey(socket.meetingCode);
+      if (!isRuntimeHost(socket, rKey)) {
+        ack?.({ ok: false, error: "Not host" });
+        return;
+      }
+      const map = meetingSockets.get(rKey);
+      if (!map?.has(targetId)) {
+        ack?.({ ok: false, error: "Not in call" });
+        return;
+      }
+
+      if (!mutedStateByRoom.has(rKey)) mutedStateByRoom.set(rKey, new Map());
+      mutedStateByRoom.get(rKey).set(targetId, muted);
+      io.to(targetId).emit("host-force-mute", { muted });
+      io.to(rKey).emit("participant-muted-state", { socketId: targetId, muted });
+      ack?.({ ok: true, targetId, muted });
     });
 
     socket.on("host-remove-participant", ({ targetId }, ack) => {
@@ -414,6 +446,28 @@ export function setupSocket(io) {
       socket.to(rKey).emit("whiteboard-clear");
     });
 
+    socket.on("raise-hand", ({ raised }) => {
+      if (!socket.meetingCode) return;
+      const rKey = roomKey(socket.meetingCode);
+      const map = meetingSockets.get(rKey);
+      if (!map?.has(socket.id)) return;
+      socket.to(rKey).emit("user-hand-state-changed", { socketId: socket.id, raised });
+    });
+
+    socket.on("caption-broadcast", ({ text, isFinal }) => {
+      if (!socket.meetingCode) return;
+      const rKey = roomKey(socket.meetingCode);
+      const map = meetingSockets.get(rKey);
+      if (!map?.has(socket.id)) return;
+      socket.to(rKey).emit("caption-broadcast", {
+        socketId: socket.id,
+        displayName: socket.displayName || "Guest",
+        text,
+        isFinal,
+      });
+    });
+
+
     socket.on("disconnect", () => {
       const waitKey = socket.waitingForKey;
       if (waitKey) {
@@ -447,11 +501,14 @@ export function setupSocket(io) {
       const map = meetingSockets.get(rKey);
       if (map) {
         map.delete(socket.id);
+        mutedStateByRoom.get(rKey)?.delete(socket.id);
+        io.to(rKey).emit("participant-muted-state", { socketId: socket.id, muted: false });
         socket.to(rKey).emit("user-left", { socketId: socket.id });
         if (map.size === 0) {
           meetingSockets.delete(rKey);
           hostSocketByRoom.delete(rKey);
           waitingQueues.delete(rKey);
+          mutedStateByRoom.delete(rKey);
           meetingWhiteboards.delete(rKey);
 
           logActivity({

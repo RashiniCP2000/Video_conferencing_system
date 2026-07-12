@@ -104,27 +104,36 @@ export default function CheckoutPayment() {
         setProcessingStep(3);
         setTimeout(async () => {
           try {
-            const mockSessionId = "session_" + Math.random().toString(36).substring(2, 11);
-            
-            // Call completion API to update DB
-            await api.post("/payments/mock-complete-session", {
-              sessionId: mockSessionId,
+            const { data } = await api.post("/payments/create-checkout-session", {
               plan,
               interval,
             });
 
-            // Save details for the Success screen to display
-            const transactionDetails = {
-              planName: plan === "basic" ? "Basic Plan" : "Student Plan",
-              amount: billingInfo ? billingInfo.total : (plan === "basic" ? 9.99 : 4.99),
-              transactionId: "TXN-" + Math.floor(10000000 + Math.random() * 90000000),
-              startDate: new Date().toLocaleDateString(),
-              nextBillingDate: new Date(Date.now() + (interval === "yearly" ? 365 : 30) * 24 * 60 * 60 * 1000).toLocaleDateString(),
-            };
-            sessionStorage.setItem("meetnova_transaction_details", JSON.stringify(transactionDetails));
+            if (data.provider === "payhere" && data.checkoutUrl && data.fields) {
+              const form = document.createElement("form");
+              form.method = "POST";
+              form.action = data.checkoutUrl;
+              form.style.display = "none";
 
-            // Done!
-            navigate(`/payment-success?session_id=${mockSessionId}`);
+              Object.entries(data.fields).forEach(([key, value]) => {
+                const input = document.createElement("input");
+                input.type = "hidden";
+                input.name = key;
+                input.value = value;
+                form.appendChild(input);
+              });
+
+              document.body.appendChild(form);
+              form.submit();
+              return;
+            }
+
+            if (data.url) {
+              window.location.href = data.url;
+              return;
+            }
+
+            throw new Error("Payment gateway did not return a redirect URL.");
           } catch (err) {
             setError(err.response?.data?.message || "Checkout failed. Please try again.");
             setProcessing(false);
@@ -243,7 +252,7 @@ export default function CheckoutPayment() {
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 mb-6">
               <div className="flex justify-between items-baseline mb-4">
                 <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total Charge</span>
-                <span className="text-2xl font-bold text-slate-900">${billingInfo.total.toFixed(2)}</span>
+                <span className="text-2xl font-bold text-slate-900">LKR {billingInfo.total.toFixed(2)}</span>
               </div>
               <div className="text-xs text-slate-500 leading-normal flex items-start gap-2">
                 <SparklesIcon className="h-4 w-4 text-accent flex-shrink-0" />
